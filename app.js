@@ -11,6 +11,18 @@ const CONFIG = {
   TUTORIAL_KEY: 'neurophoto_tutorial_seen_session'
 };
 
+const SUPABASE_ANON_KEY = "eyJhbGciOi..."; // public anon key из Supabase
+
+const initData = Telegram.WebApp.initData;
+
+const res = await fetch(TG_PROFILE_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbWlyem1xbmNid2p6dHNjd3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MTAwMDksImV4cCI6MjA3OTk4NjAwOX0.D4UwlJ9lEfQZHc31max3xvoLzFIWCmuB9KNKnFkOY68}`,
+  },
+  body: JSON.stringify({ initData }),
+});
 
 // --- Telegram WebApp + Supabase Edge profile (no anon on frontend) ---
 const TG_PROFILE_URL = "https://pfmirzmqncbwjztscwyo.supabase.co/functions/v1/tg_profile";
