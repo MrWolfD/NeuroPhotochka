@@ -1,5 +1,3 @@
-console.log("APP LOADED ✅ v20251226-profile-fix-1");
-
 'use strict';
 
 // Конфигурация
@@ -68,7 +66,6 @@ function normalizeProfilePayload(payload) {
 
 async function fetchProfileFromEdge() {
   const initData = getTelegramInitData();
-  console.log("TG initData length:", initData.length);
 
   if (!initData) {
     console.warn("No initData — opened outside Telegram WebApp");
@@ -86,7 +83,6 @@ async function fetchProfileFromEdge() {
   });
 
   const text = await res.text();
-  console.log("tg_profile raw response:", res.status, text);
 
   if (!res.ok) {
     throw new Error(`tg_profile HTTP ${res.status}: ${text}`);
@@ -100,7 +96,6 @@ async function fetchProfileFromEdge() {
   }
 
   const profile = normalizeProfilePayload(json);
-  console.log("tg_profile normalized profile:", profile);
 
   return profile;
 }
@@ -914,7 +909,6 @@ function initApp() {
     try {
       runtimeProfile = await fetchProfileFromEdge();
     } catch (e) {
-      console.error("Profile fetch failed:", e);
       runtimeProfile = null;
     }
 
