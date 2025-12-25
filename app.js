@@ -11,20 +11,10 @@ const CONFIG = {
   TUTORIAL_KEY: 'neurophoto_tutorial_seen_session'
 };
 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbWlyem1xbmNid2p6dHNjd3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MTAwMDksImV4cCI6MjA3OTk4NjAwOX0.D4UwlJ9lEfQZHc31max3xvoLzFIWCmuB9KNKnFkOY68"; // public anon key из Supabase
+// ✅ Public anon key — можно хранить на фронте
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbWlyem1xbmNid2p6dHNjd3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MTAwMDksImV4cCI6MjA3OTk4NjAwOX0.D4UwlJ9lEfQZHc31max3xvoLzFIWCmuB9KNKnFkOY68";
 
-const initData = Telegram.WebApp.initData;
-
-const res = await fetch(TG_PROFILE_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-  },
-  body: JSON.stringify({ initData }),
-});
-
-// --- Telegram WebApp + Supabase Edge profile (no anon on frontend) ---
+// --- Telegram WebApp + Supabase Edge profile ---
 const TG_PROFILE_URL = "https://pfmirzmqncbwjztscwyo.supabase.co/functions/v1/tg_profile";
 let runtimeProfile = null;
 
@@ -32,7 +22,6 @@ function initTelegramWebApp() {
   try {
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
-      // expand is optional; safe to call
       window.Telegram.WebApp.expand();
     }
   } catch (e) {
@@ -48,22 +37,36 @@ async function fetchProfileFromEdge() {
   const initData = getTelegramInitData();
   console.log("TG initData length:", initData.length);
 
-  if (!initData) return null; // opened outside Telegram WebApp
+  if (!initData) {
+    console.warn("No initData — opened outside Telegram WebApp");
+    return null;
+  }
 
   const res = await fetch(TG_PROFILE_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      // ✅ Без этого Supabase Edge Function часто отдаёт 401
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+    },
     body: JSON.stringify({ initData })
   });
 
-  const json = await res.json().catch(() => ({}));
-  console.log("tg_profile response:", res.status, json);
+  // ✅ Отладка: читаем текст, чтобы увидеть точную ошибку
+  const text = await res.text();
+  console.log("tg_profile raw response:", res.status, text);
 
   if (!res.ok) {
-    throw new Error(json?.error || `tg_profile HTTP ${res.status}`);
+    throw new Error(`tg_profile HTTP ${res.status}: ${text}`);
   }
 
-  // function returns { ok:true, profile } OR raw
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    throw new Error("tg_profile returned non-JSON");
+  }
+
   return json.profile ?? json;
 }
 
@@ -97,7 +100,7 @@ const demoData = {
     generations: { total: 98, success: 79, unfinished: 11, canceled: 8 },
     referralLink: "https://t.me/neurophoto_bot?start=ref_224753455"
   },
-  
+
   prompts: [
     { id: 1, title: "Профессиональный портрет в студии", description: "Светлая студия, профессиональное освещение, детализированная проработка кожи", promptText: "Сгенерируй фото: Профессиональный портрет в студии. Студийное освещение, мягкий key light, аккуратные тени, реалистичная кожа, высокая детализация, 8K.", image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2", category: "портрет", copies: 324, favorites: 45, tags: ["студия", "портрет", "профессиональный"], isPremium: true },
     { id: 2, title: "Модная фотосессия в городе", description: "Уличная съемка, современная одежда, городской бэкграунд", promptText: "Сгенерируй фото: Модная фотосессия в городе. Стрит-фото, кинематографичный свет, городской фон, высокий контраст, реалистичная текстура одежды, 8K.", image: "https://images.unsplash.com/photo-1488161628813-04466f872be2", category: "фотосессия", copies: 289, favorites: 38, tags: ["улица", "мода", "город"], isPremium: false },
@@ -162,20 +165,21 @@ const utils = {
 
   formatDate(dateStr) {
     const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? dateStr : 
-      date.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' });
+    return isNaN(date.getTime())
+      ? dateStr
+      : date.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' });
   },
 
   showToast(message, type = 'success') {
-    const icon = type === 'success' 
+    const icon = type === 'success'
       ? '<path d="M20 6L9 17l-5-5"></path>'
       : '<circle cx="12" cy="12" r="10"></circle><path d="m15 9-6 6M9 9l6 6"></path>';
-    
+
     dom.toast.innerHTML = `
       <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon}</svg>
       <span>${message}</span>
     `;
-    
+
     dom.toast.classList.add('show');
     setTimeout(() => dom.toast.classList.remove('show'), 2600);
   }
@@ -184,14 +188,14 @@ const utils = {
 // Основные функции
 function renderCategories() {
   const categories = ['все', ...new Set(state.prompts.map(p => p.category))];
-  
+
   dom.filterTabs.innerHTML = categories.map(cat => {
     const isActive = state.activeCategories.has(cat);
     const isAll = cat === 'все';
     const allActiveButOthers = isAll && state.activeCategories.size > 1;
-    
+
     return `
-      <div class="filter-tab ${isActive ? 'active' : ''} ${allActiveButOthers ? 'all-active' : ''}" 
+      <div class="filter-tab ${isActive ? 'active' : ''} ${allActiveButOthers ? 'all-active' : ''}"
            data-category="${cat}">
         ${cat.charAt(0).toUpperCase() + cat.slice(1)}
       </div>
@@ -201,18 +205,18 @@ function renderCategories() {
 
 function renderPrompts() {
   if (state.filteredPrompts.length === 0) {
-    const emptyState = state.showOnlyFavorites 
+    const emptyState = state.showOnlyFavorites
       ? {
-          icon: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
-          title: 'В избранном пока пусто',
-          text: 'Открывайте промпты и нажимайте на сердечко, чтобы быстро находить их и копировать в бот'
-        }
+        icon: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
+        title: 'В избранном пока пусто',
+        text: 'Открывайте промпты и нажимайте на сердечко, чтобы быстро находить их и копировать в бот'
+      }
       : {
-          icon: '<circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path>',
-          title: 'Промпты не найдены',
-          text: 'Попробуйте изменить фильтры или поиск'
-        };
-    
+        icon: '<circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path>',
+        title: 'Промпты не найдены',
+        text: 'Попробуйте изменить фильтры или поиск'
+      };
+
     dom.cardsGrid.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1;">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">${emptyState.icon}</svg>
@@ -226,11 +230,11 @@ function renderPrompts() {
   dom.cardsGrid.innerHTML = state.filteredPrompts.map(prompt => `
     <div class="prompt-card" data-id="${prompt.id}">
       ${prompt.isPremium ? '<div class="prompt-badge">PREMIUM</div>' : ''}
-      <img src="${prompt.image}" 
-           alt="${prompt.title}" 
-           class="prompt-image" 
+      <img src="${prompt.image}"
+           alt="${prompt.title}"
+           class="prompt-image"
            loading="lazy"
-           onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"300\" height=\"400\"><rect width=\"100%\" height=\"100%\" fill=\"%23f3f4f6\"/></svg>
+           onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;300&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f3f4f6&quot;/></svg>'">
       <div class="prompt-content">
         <h3 class="prompt-title">${prompt.title}</h3>
         <p class="prompt-description">${prompt.description}</p>
@@ -255,7 +259,7 @@ function renderPrompts() {
                     data-id="${prompt.id}"
                     title="${state.favorites.includes(prompt.id) ? 'Удалить из избранного' : 'Добавить в избранное'}">
               <svg width="18" height="18" viewBox="0 0 24 24"
-                   fill="${state.favorites.includes(prompt.id) ? 'currentColor' : 'none'}" 
+                   fill="${state.favorites.includes(prompt.id) ? 'currentColor' : 'none'}"
                    stroke="currentColor" stroke-width="2">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
@@ -278,7 +282,7 @@ function updatePrompts() {
   // Фильтр категорий
   const categories = new Set(state.activeCategories);
   const onlyAll = categories.size === 1 && categories.has('все');
-  
+
   if (!onlyAll) {
     categories.delete('все');
     if (categories.size > 0) {
@@ -319,8 +323,8 @@ function updateStats() {
   const favCount = state.favorites.length;
 
   dom.favoritesBtn.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24" 
-         fill="${(favCount > 0 || state.showOnlyFavorites) ? 'currentColor' : 'none'}" 
+    <svg width="20" height="20" viewBox="0 0 24 24"
+         fill="${(favCount > 0 || state.showOnlyFavorites) ? 'currentColor' : 'none'}"
          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
     </svg>
@@ -371,14 +375,13 @@ function syncPromptModalStatsPlacement() {
 // Modal функции
 const modal = {
   currentIndex: 0,
-  
+
   open(el) {
     el.classList.add('show');
     el.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
     document.body.style.overflow = 'hidden';
-    
-    // Focus trap for accessibility
+
     const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
     if (focusable.length) {
       focusable[0].focus();
@@ -390,8 +393,7 @@ const modal = {
     el.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
     document.body.style.overflow = '';
-    
-    // Return focus to the element that opened the modal
+
     if (el.lastFocusedElement) {
       el.lastFocusedElement.focus();
     }
@@ -400,25 +402,25 @@ const modal = {
   openPrompt(promptId) {
     const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
     const idx = list.findIndex(p => p.id === promptId);
-    
+
     if (idx < 0) return;
-    
+
     this.currentIndex = idx;
     const prompt = list[idx];
-    
+
     document.getElementById('promptModalTitle').textContent = prompt.title;
-    document.getElementById('promptModalSubtitle').textContent = 
-      (prompt.category ? `Категория: ${prompt.category}` : '') + 
+    document.getElementById('promptModalSubtitle').textContent =
+      (prompt.category ? `Категория: ${prompt.category}` : '') +
       (prompt.isPremium ? ' • PREMIUM' : '');
-    
+
     const img = document.getElementById('promptModalImage');
     img.src = prompt.image;
     img.alt = prompt.title;
-    
+
     document.getElementById('promptModalText').value = prompt.promptText || '';
     document.getElementById('promptModalCopies').textContent = prompt.copies || 0;
     document.getElementById('promptModalFavorites').textContent = prompt.favorites || 0;
-    document.getElementById('promptModalFavBtn').textContent = 
+    document.getElementById('promptModalFavBtn').textContent =
       state.favorites.includes(prompt.id) ? '❤ В избранном' : '❤ В избранное';
     document.getElementById('promptCarouselCounter').textContent = `${this.currentIndex + 1} / ${list.length}`;
 
@@ -443,7 +445,6 @@ const modal = {
   openProfile() {
     const p = getProfileOrDemo();
 
-    // Your RPC fields:
     const total = Number(p.total_generations ?? p.generations?.total ?? 0);
     const done = Number(p.done_count ?? p.generations?.success ?? 0);
     const notFinished = Number(p.not_finished_count ?? p.generations?.unfinished ?? 0);
@@ -495,7 +496,7 @@ const modal = {
 // Вспомогательные функции
 function toggleFavorite(promptId) {
   const index = state.favorites.indexOf(promptId);
-  
+
   if (index > -1) {
     state.favorites.splice(index, 1);
     utils.showToast('Удалено из избранного');
@@ -503,7 +504,7 @@ function toggleFavorite(promptId) {
     state.favorites.push(promptId);
     utils.showToast('Добавлено в избранное');
   }
-  
+
   localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state.favorites));
   updatePrompts();
 }
@@ -511,22 +512,22 @@ function toggleFavorite(promptId) {
 function toggleCurrentFavorite() {
   const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
   const prompt = list[modal.currentIndex];
-  
+
   if (!prompt) return;
-  
+
   toggleFavorite(prompt.id);
-  document.getElementById('promptModalFavBtn').textContent = 
+  document.getElementById('promptModalFavBtn').textContent =
     state.favorites.includes(prompt.id) ? '❤ В избранном' : '❤ В избранное';
 }
 
 async function copyCurrentPrompt() {
   const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
   const prompt = list[modal.currentIndex];
-  
+
   if (!prompt) return;
-  
+
   const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
-  
+
   if (success) {
     utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
     prompt.copies = (prompt.copies || 0) + 1;
@@ -539,22 +540,22 @@ async function copyCurrentPrompt() {
 function setupCarouselSwipe() {
   const carousel = document.getElementById('promptCarousel');
   if (!carousel) return;
-  
+
   let startX = 0;
   let isDown = false;
-  
+
   carousel.addEventListener('touchstart', (e) => {
     isDown = true;
     startX = e.touches[0].clientX;
   }, { passive: true });
-  
+
   carousel.addEventListener('touchend', (e) => {
     if (!isDown) return;
-    
+
     isDown = false;
     const endX = e.changedTouches[0]?.clientX || startX;
     const distance = endX - startX;
-    
+
     if (Math.abs(distance) > CONFIG.MIN_SWIPE_DISTANCE) {
       distance > 0 ? modal.prev() : modal.next();
     }
@@ -683,7 +684,7 @@ function initPromptBuilder() {
           </div>
         </div>
         <div class="pb-section__head-right">
-          ${section.type === 'radio' 
+          ${section.type === 'radio'
             ? `<span class="pb-section__current" data-key="${section.key}">${builderState[section.key] || 'Не выбрано'}</span>`
             : `<span class="pb-section__counter" data-key="${section.key}" style="display:${builderState[section.key].size > 0 ? 'flex' : 'none'}">${builderState[section.key].size}</span>`
           }
@@ -694,8 +695,8 @@ function initPromptBuilder() {
         ${section.type === 'multi' ? '<div class="pb-section__note">Можно выбрать несколько</div>' : ''}
         <div class="pb-pills ${section.type === 'radio' ? 'pb-radio' : 'pb-multi'}" data-key="${section.key}">
           ${section.options.map(opt => `
-            <button class="pb-pill ${(section.type === 'radio' && builderState[section.key] === opt.value) || 
-                                    (section.type === 'multi' && builderState[section.key].has(opt.value)) ? 'is-active' : ''}" 
+            <button class="pb-pill ${(section.type === 'radio' && builderState[section.key] === opt.value) ||
+                                    (section.type === 'multi' && builderState[section.key].has(opt.value)) ? 'is-active' : ''}"
                     type="button" data-value="${opt.value}">
               <span class="pb-pill__icon">${opt.icon}</span>
               <span class="pb-pill__text">${opt.text}</span>
@@ -712,20 +713,19 @@ function initPromptBuilder() {
       const value = builderState[key];
       return value instanceof Set ? value.size > 0 : value && value.trim() !== '';
     }).length;
-    
+
     const percentage = Math.round((filled / sections.length) * 100);
     elements.progressFill.style.width = `${percentage}%`;
     elements.progressPercent.textContent = `${percentage}%`;
-    
-    // Обновление счетчиков
+
     document.querySelectorAll('.pb-section__current[data-key="pose"]').forEach(el => {
       el.textContent = builderState.pose || 'Не выбрано';
     });
-    
+
     document.querySelectorAll('.pb-section__current[data-key="time"]').forEach(el => {
       el.textContent = builderState.time || 'Не выбрано';
     });
-    
+
     ['clothes', 'location', 'lighting'].forEach(key => {
       const counterEls = document.querySelectorAll(`.pb-section__counter[data-key="${key}"]`);
       const count = builderState[key].size;
@@ -739,13 +739,13 @@ function initPromptBuilder() {
   function buildPrompt() {
     const base = "Сгенерируй фотореалистичное фото по описанию.";
     const parts = [];
-    
+
     if (builderState.pose) parts.push(`Поза/действие: ${builderState.pose}`);
     if (builderState.clothes.size) parts.push(`Одежда: ${Array.from(builderState.clothes).join(', ')}`);
     if (builderState.location.size) parts.push(`Локация: ${Array.from(builderState.location).join(', ')}`);
     if (builderState.time) parts.push(`Время суток: ${builderState.time}`);
     if (builderState.lighting.size) parts.push(`Освещение: ${Array.from(builderState.lighting).join(', ')}`);
-    
+
     if (parts.length === 0) {
       elements.charCount.textContent = '0';
       elements.prompt.value = '';
@@ -753,10 +753,10 @@ function initPromptBuilder() {
     }
 
     const result = `${base}\n\n${parts.map(p => `• ${p}`).join('\n')}\n\nКачество: high detail, sharp, natural skin texture.`;
-    
+
     elements.charCount.textContent = result.length.toLocaleString();
     elements.prompt.value = result.trim();
-    
+
     return result;
   }
 
@@ -764,7 +764,7 @@ function initPromptBuilder() {
     elements.notification.textContent = text;
     elements.notification.style.background = isError ? '#ef4444' : '#10B981';
     elements.notification.classList.add('show');
-    
+
     setTimeout(() => {
       elements.notification.classList.remove('show');
     }, 2000);
@@ -776,11 +776,11 @@ function initPromptBuilder() {
     builderState.clothes.clear();
     builderState.location.clear();
     builderState.lighting.clear();
-    
+
     document.querySelectorAll('.pb-pill').forEach(pill => {
       pill.classList.remove('is-active');
     });
-    
+
     buildPrompt();
     updateProgress();
     showNotification('Настройки конструктора сброшены');
@@ -793,7 +793,6 @@ function initPromptBuilder() {
     builderState.location.clear();
     builderState.lighting.clear();
 
-    // Обновляем UI после сброса
     document.querySelectorAll('.pb-pill.is-active').forEach(pill => {
       pill.classList.remove('is-active');
     });
@@ -810,20 +809,20 @@ function initPromptBuilder() {
 
   elements.sections.addEventListener('click', (e) => {
     const target = e.target;
-    
+
     const toggleBtn = target.closest('[data-toggle]');
     if (toggleBtn) {
       const section = toggleBtn.closest('[data-section]');
       section.classList.toggle('is-collapsed');
       return;
     }
-    
+
     const pill = target.closest('.pb-pill');
     if (pill) {
       const group = pill.closest('.pb-pills');
       const key = group.dataset.key;
       const value = pill.dataset.value;
-      
+
       if (group.classList.contains('pb-radio')) {
         document.querySelectorAll(`.pb-pills[data-key="${key}"] .pb-pill`).forEach(p => {
           p.classList.remove('is-active');
@@ -839,7 +838,7 @@ function initPromptBuilder() {
           builderState[key].add(value);
         }
       }
-      
+
       buildPrompt();
       updateProgress();
     }
@@ -847,7 +846,7 @@ function initPromptBuilder() {
 
   elements.copyBtn.addEventListener('click', async () => {
     const success = await utils.copyToClipboard(elements.prompt.value);
-    
+
     if (success) {
       showNotification('Промпт скопирован. Вставьте его в чат с ботом');
     } else {
@@ -856,11 +855,11 @@ function initPromptBuilder() {
   });
 
   elements.resetBtn.addEventListener('click', resetBuilder);
-  
+
   elements.expandBtn.addEventListener('click', () => {
     elements.prompt.style.minHeight = elements.prompt.style.minHeight === '320px' ? '140px' : '320px';
   });
-  
+
   elements.collapseBtn.addEventListener('click', () => {
     document.querySelectorAll('[data-section]').forEach(section => {
       section.classList.add('is-collapsed');
@@ -897,7 +896,6 @@ function initApp() {
     // Fill referral / bonus preview on home screen
     const p = getProfileOrDemo();
 
-    // These DOM elements exist on the main screen
     dom.invitedCount.textContent = p.referrals_count ?? p.referrals ?? 0;
     dom.earnedBonuses.textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
     dom.bonusBalance.textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
@@ -923,10 +921,10 @@ function setupEventListeners() {
   dom.filterTabs.addEventListener('click', (e) => {
     const tab = e.target.closest('.filter-tab');
     if (!tab) return;
-    
+
     const category = tab.dataset.category;
     state.activeCategories = new Set([category]);
-    
+
     renderCategories();
     updatePrompts();
   });
@@ -942,8 +940,8 @@ function setupEventListeners() {
     state.showOnlyFavorites = !state.showOnlyFavorites;
     updatePrompts();
     utils.showToast(
-      state.showOnlyFavorites 
-        ? 'Показаны только избранные промпты' 
+      state.showOnlyFavorites
+        ? 'Показаны только избранные промпты'
         : 'Показаны все промпты'
     );
   });
@@ -956,7 +954,7 @@ function setupEventListeners() {
       toggleFavorite(id);
       return;
     }
-    
+
     const card = e.target.closest('.prompt-card');
     if (card) {
       const id = parseInt(card.dataset.id);
@@ -967,7 +965,7 @@ function setupEventListeners() {
   // Копирование реферальной ссылки
   dom.copyReferralBtn.addEventListener('click', async () => {
     const success = await utils.copyToClipboard(dom.referralLink.value || '');
-    
+
     if (success) {
       utils.showToast('Ссылка скопирована');
       dom.copyReferralBtn.classList.add('is-copied');
@@ -982,16 +980,16 @@ function setupEventListeners() {
     dom.profileModalOverlay.lastFocusedElement = dom.profileBtn;
     modal.openProfile();
   });
-  
+
   document.getElementById('profileModalClose').addEventListener('click', () => modal.close(dom.profileModalOverlay));
   dom.profileModalOverlay.addEventListener('click', (e) => {
     if (e.target === dom.profileModalOverlay) modal.close(dom.profileModalOverlay);
   });
-  
+
   document.getElementById('profileCopyReferralBtn').addEventListener('click', async () => {
     const link = document.getElementById('profileReferralLink').value;
     const success = await utils.copyToClipboard(link);
-    
+
     if (success) {
       utils.showToast('Ссылка скопирована');
     } else {
@@ -1004,7 +1002,7 @@ function setupEventListeners() {
   dom.promptModalOverlay.addEventListener('click', (e) => {
     if (e.target === dom.promptModalOverlay) modal.close(dom.promptModalOverlay);
   });
-  
+
   document.getElementById('promptPrevBtn').addEventListener('click', () => modal.prev());
   document.getElementById('promptNextBtn').addEventListener('click', () => modal.next());
   document.getElementById('promptModalCopyBtn').addEventListener('click', copyCurrentPrompt);
@@ -1015,17 +1013,17 @@ function setupEventListeners() {
     dom.constructorModalOverlay.lastFocusedElement = dom.generateBtn;
     modal.openConstructor();
   });
-  
+
   dom.mobileGenerateBtn.addEventListener('click', () => {
     dom.constructorModalOverlay.lastFocusedElement = dom.mobileGenerateBtn;
     modal.openConstructor();
   });
-  
+
   dom.tryFreeBtn.addEventListener('click', () => {
     dom.constructorModalOverlay.lastFocusedElement = dom.tryFreeBtn;
     modal.openConstructor();
   });
-  
+
   document.getElementById('constructorModalClose').addEventListener('click', () => modal.close(dom.constructorModalOverlay));
   dom.constructorModalOverlay.addEventListener('click', (e) => {
     if (e.target === dom.constructorModalOverlay) modal.close(dom.constructorModalOverlay);
@@ -1035,7 +1033,7 @@ function setupEventListeners() {
   if (dom.tutorialGotItBtn) {
     dom.tutorialGotItBtn.addEventListener('click', () => modal.closeTutorial());
   }
-  
+
   if (dom.tutorialModalOverlay) {
     dom.tutorialModalOverlay.addEventListener('click', (e) => {
       if (e.target === dom.tutorialModalOverlay) modal.closeTutorial();
@@ -1055,7 +1053,7 @@ function setupEventListeners() {
         modal.close(dom.promptModalOverlay);
       }
     }
-    
+
     if (dom.promptModalOverlay.classList.contains('show')) {
       if (e.key === 'ArrowLeft') modal.prev();
       if (e.key === 'ArrowRight') modal.next();
@@ -1071,9 +1069,9 @@ function moveBannerForMobile() {
   const banner = document.querySelector('.hero-banner');
   const container = document.querySelector('.container');
   const header = document.querySelector('header');
-  
+
   if (!banner || !container || !header) return;
-  
+
   if (window.innerWidth <= 768) {
     if (!banner.classList.contains('moved-to-bottom')) {
       container.after(banner);
@@ -1095,19 +1093,19 @@ function moveBannerForMobile() {
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   setupEventListeners();
-  
+
   // Показать туториал при загрузке (с небольшой задержкой)
   setTimeout(() => {
     modal.openTutorial();
   }, 1000);
-  
+
   window.addEventListener('resize', () => {
     if (dom.promptModalOverlay.classList.contains('show')) {
       syncPromptModalStatsPlacement();
     }
     moveBannerForMobile();
   });
-  
+
   // Перенос баннера при загрузке
   moveBannerForMobile();
 });
