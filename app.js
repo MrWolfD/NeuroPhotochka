@@ -1,4 +1,4 @@
-console.log("APP LOADED ✅ v20251225-2");
+console.log("APP LOADED ✅ v20251226-profile-fix-1");
 
 'use strict';
 
@@ -33,6 +33,39 @@ function getTelegramInitData() {
   return window.Telegram?.WebApp?.initData || "";
 }
 
+/**
+ * Нормализуем любой формат, который может прийти из Edge Function:
+ * - { ok, uid, profile: {...} }
+ * - { ok, uid, profile: [{...}] }
+ * - { ... } (без обёртки)
+ * - [{...}] (если вдруг вернули массив напрямую)
+ */
+function normalizeProfilePayload(payload) {
+  if (payload == null) return null;
+
+  // Если payload — строка (например, вернули текст), пытаемся распарсить
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      return null;
+    }
+  }
+
+  // если пришёл массив — берём первую строку
+  if (Array.isArray(payload)) {
+    return payload[0] ?? null;
+  }
+
+  // если пришёл объект с profile
+  const p = payload.profile ?? payload.data ?? payload;
+
+  if (Array.isArray(p)) return p[0] ?? null;
+  if (p && typeof p === 'object') return p;
+
+  return null;
+}
+
 async function fetchProfileFromEdge() {
   const initData = getTelegramInitData();
   console.log("TG initData length:", initData.length);
@@ -52,7 +85,6 @@ async function fetchProfileFromEdge() {
     body: JSON.stringify({ initData })
   });
 
-  // ✅ Отладка: читаем текст, чтобы увидеть точную ошибку
   const text = await res.text();
   console.log("tg_profile raw response:", res.status, text);
 
@@ -67,7 +99,10 @@ async function fetchProfileFromEdge() {
     throw new Error("tg_profile returned non-JSON");
   }
 
-  return json.profile ?? json;
+  const profile = normalizeProfilePayload(json);
+  console.log("tg_profile normalized profile:", profile);
+
+  return profile;
 }
 
 function getProfileOrDemo() {
@@ -274,12 +309,10 @@ function renderPrompts() {
 function updatePrompts() {
   let filtered = [...state.prompts];
 
-  // Фильтр избранного
   if (state.showOnlyFavorites) {
     filtered = filtered.filter(p => state.favorites.includes(p.id));
   }
 
-  // Фильтр категорий
   const categories = new Set(state.activeCategories);
   const onlyAll = categories.size === 1 && categories.has('все');
 
@@ -290,7 +323,6 @@ function updatePrompts() {
     }
   }
 
-  // Поиск
   if (state.searchQuery) {
     const query = state.searchQuery.toLowerCase();
     filtered = filtered.filter(p =>
@@ -300,7 +332,6 @@ function updatePrompts() {
     );
   }
 
-  // Сортировка
   filtered.sort((a, b) => {
     switch (state.sortBy) {
       case 'default': return (b.copies + b.favorites) - (a.copies + a.favorites);
@@ -333,7 +364,6 @@ function updateStats() {
 
   dom.favoritesBtn.classList.toggle('active', state.showOnlyFavorites);
 
-  // Иконка профиля
   if (dom.profileBtn && !dom.profileBtn.innerHTML.trim()) {
     dom.profileBtn.innerHTML = `
       <svg width="20" height="20" viewBox="0 0 24 24"
@@ -350,14 +380,12 @@ function isMobileView() {
   return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
 }
 
-// Инициализация промптов при загрузке
 function initPrompts() {
   state.prompts = demoData.prompts;
   state.filteredPrompts = [...demoData.prompts];
   state.isLoading = false;
 }
 
-// Переносим счетчики (копирования/избранное) в карусель на мобильных
 function syncPromptModalStatsPlacement() {
   const stats = document.getElementById('promptModalStats');
   const dock = document.getElementById('promptModalStatsDock');
@@ -562,7 +590,7 @@ function setupCarouselSwipe() {
   }, { passive: true });
 }
 
-// Конструктор промптов
+// Конструктор промптов (без изменений)
 function initPromptBuilder() {
   const builderData = {
     pose: {
@@ -684,7 +712,7 @@ function initPromptBuilder() {
           </div>
         </div>
         <div class="pb-section__head-right">
-          ${section.type === 'radio'
+          ${section.type === 'radio' 
             ? `<span class="pb-section__current" data-key="${section.key}">${builderState[section.key] || 'Не выбрано'}</span>`
             : `<span class="pb-section__counter" data-key="${section.key}" style="display:${builderState[section.key].size > 0 ? 'flex' : 'none'}">${builderState[section.key].size}</span>`
           }
@@ -695,8 +723,8 @@ function initPromptBuilder() {
         ${section.type === 'multi' ? '<div class="pb-section__note">Можно выбрать несколько</div>' : ''}
         <div class="pb-pills ${section.type === 'radio' ? 'pb-radio' : 'pb-multi'}" data-key="${section.key}">
           ${section.options.map(opt => `
-            <button class="pb-pill ${(section.type === 'radio' && builderState[section.key] === opt.value) ||
-                                    (section.type === 'multi' && builderState[section.key].has(opt.value)) ? 'is-active' : ''}"
+            <button class="pb-pill ${(section.type === 'radio' && builderState[section.key] === opt.value) || 
+                                    (section.type === 'multi' && builderState[section.key].has(opt.value)) ? 'is-active' : ''}" 
                     type="button" data-value="${opt.value}">
               <span class="pb-pill__icon">${opt.icon}</span>
               <span class="pb-pill__text">${opt.text}</span>
@@ -713,19 +741,20 @@ function initPromptBuilder() {
       const value = builderState[key];
       return value instanceof Set ? value.size > 0 : value && value.trim() !== '';
     }).length;
-
+    
     const percentage = Math.round((filled / sections.length) * 100);
     elements.progressFill.style.width = `${percentage}%`;
     elements.progressPercent.textContent = `${percentage}%`;
-
+    
+    // Обновление счетчиков
     document.querySelectorAll('.pb-section__current[data-key="pose"]').forEach(el => {
       el.textContent = builderState.pose || 'Не выбрано';
     });
-
+    
     document.querySelectorAll('.pb-section__current[data-key="time"]').forEach(el => {
       el.textContent = builderState.time || 'Не выбрано';
     });
-
+    
     ['clothes', 'location', 'lighting'].forEach(key => {
       const counterEls = document.querySelectorAll(`.pb-section__counter[data-key="${key}"]`);
       const count = builderState[key].size;
@@ -739,13 +768,13 @@ function initPromptBuilder() {
   function buildPrompt() {
     const base = "Сгенерируй фотореалистичное фото по описанию.";
     const parts = [];
-
+    
     if (builderState.pose) parts.push(`Поза/действие: ${builderState.pose}`);
     if (builderState.clothes.size) parts.push(`Одежда: ${Array.from(builderState.clothes).join(', ')}`);
     if (builderState.location.size) parts.push(`Локация: ${Array.from(builderState.location).join(', ')}`);
     if (builderState.time) parts.push(`Время суток: ${builderState.time}`);
     if (builderState.lighting.size) parts.push(`Освещение: ${Array.from(builderState.lighting).join(', ')}`);
-
+    
     if (parts.length === 0) {
       elements.charCount.textContent = '0';
       elements.prompt.value = '';
@@ -753,10 +782,10 @@ function initPromptBuilder() {
     }
 
     const result = `${base}\n\n${parts.map(p => `• ${p}`).join('\n')}\n\nКачество: high detail, sharp, natural skin texture.`;
-
+    
     elements.charCount.textContent = result.length.toLocaleString();
     elements.prompt.value = result.trim();
-
+    
     return result;
   }
 
@@ -764,7 +793,7 @@ function initPromptBuilder() {
     elements.notification.textContent = text;
     elements.notification.style.background = isError ? '#ef4444' : '#10B981';
     elements.notification.classList.add('show');
-
+    
     setTimeout(() => {
       elements.notification.classList.remove('show');
     }, 2000);
@@ -776,11 +805,11 @@ function initPromptBuilder() {
     builderState.clothes.clear();
     builderState.location.clear();
     builderState.lighting.clear();
-
+    
     document.querySelectorAll('.pb-pill').forEach(pill => {
       pill.classList.remove('is-active');
     });
-
+    
     buildPrompt();
     updateProgress();
     showNotification('Настройки конструктора сброшены');
@@ -793,6 +822,7 @@ function initPromptBuilder() {
     builderState.location.clear();
     builderState.lighting.clear();
 
+    // Обновляем UI после сброса
     document.querySelectorAll('.pb-pill.is-active').forEach(pill => {
       pill.classList.remove('is-active');
     });
@@ -809,20 +839,20 @@ function initPromptBuilder() {
 
   elements.sections.addEventListener('click', (e) => {
     const target = e.target;
-
+    
     const toggleBtn = target.closest('[data-toggle]');
     if (toggleBtn) {
       const section = toggleBtn.closest('[data-section]');
       section.classList.toggle('is-collapsed');
       return;
     }
-
+    
     const pill = target.closest('.pb-pill');
     if (pill) {
       const group = pill.closest('.pb-pills');
       const key = group.dataset.key;
       const value = pill.dataset.value;
-
+      
       if (group.classList.contains('pb-radio')) {
         document.querySelectorAll(`.pb-pills[data-key="${key}"] .pb-pill`).forEach(p => {
           p.classList.remove('is-active');
@@ -838,7 +868,7 @@ function initPromptBuilder() {
           builderState[key].add(value);
         }
       }
-
+      
       buildPrompt();
       updateProgress();
     }
@@ -846,7 +876,7 @@ function initPromptBuilder() {
 
   elements.copyBtn.addEventListener('click', async () => {
     const success = await utils.copyToClipboard(elements.prompt.value);
-
+    
     if (success) {
       showNotification('Промпт скопирован. Вставьте его в чат с ботом');
     } else {
@@ -855,11 +885,11 @@ function initPromptBuilder() {
   });
 
   elements.resetBtn.addEventListener('click', resetBuilder);
-
+  
   elements.expandBtn.addEventListener('click', () => {
     elements.prompt.style.minHeight = elements.prompt.style.minHeight === '320px' ? '140px' : '320px';
   });
-
+  
   elements.collapseBtn.addEventListener('click', () => {
     document.querySelectorAll('[data-section]').forEach(section => {
       section.classList.add('is-collapsed');
@@ -900,7 +930,8 @@ function initApp() {
     dom.earnedBonuses.textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
     dom.bonusBalance.textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
 
-    const refCode = p.ref_code ?? (p.referralLink ? String(p.referralLink).split("ref_").pop() : "");
+    // ref_code — приоритетный источник ссылки
+    const refCode = (p.ref_code ?? '').toString().trim();
     dom.referralLink.value = refCode
       ? `https://t.me/neurokartochkaBot?start=ref_${refCode}`
       : (p.referralLink ?? "");
