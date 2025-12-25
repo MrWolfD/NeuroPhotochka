@@ -1,3 +1,5 @@
+console.log("APP LOADED ✅ v20251225-2");
+
 'use strict';
 
 // Конфигурация
@@ -8,6 +10,55 @@ const CONFIG = {
   MIN_SWIPE_DISTANCE: 55,
   TUTORIAL_KEY: 'neurophoto_tutorial_seen_session'
 };
+
+
+// --- Telegram WebApp + Supabase Edge profile (no anon on frontend) ---
+const TG_PROFILE_URL = "https://pfmirzmqncbwjztscwyo.supabase.co/functions/v1/tg_profile";
+let runtimeProfile = null;
+
+function initTelegramWebApp() {
+  try {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      // expand is optional; safe to call
+      window.Telegram.WebApp.expand();
+    }
+  } catch (e) {
+    console.warn("Telegram WebApp init failed:", e);
+  }
+}
+
+function getTelegramInitData() {
+  return window.Telegram?.WebApp?.initData || "";
+}
+
+async function fetchProfileFromEdge() {
+  const initData = getTelegramInitData();
+  console.log("TG initData length:", initData.length);
+
+  if (!initData) return null; // opened outside Telegram WebApp
+
+  const res = await fetch(TG_PROFILE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initData })
+  });
+
+  const json = await res.json().catch(() => ({}));
+  console.log("tg_profile response:", res.status, json);
+
+  if (!res.ok) {
+    throw new Error(json?.error || `tg_profile HTTP ${res.status}`);
+  }
+
+  // function returns { ok:true, profile } OR raw
+  return json.profile ?? json;
+}
+
+function getProfileOrDemo() {
+  return runtimeProfile || demoData.profile;
+}
+// --- /Telegram WebApp + profile ---
 
 // Состояние приложения
 const state = {
@@ -378,23 +429,34 @@ const modal = {
   },
 
   openProfile() {
-    const p = demoData.profile;
-    const g = p.generations;
-    const rate = g.total > 0 ? Math.round((g.success / g.total) * 100) : 0;
-    
-    document.getElementById('profileTokenBalance').textContent = p.tokenBalance;
-    document.getElementById('profileBonusBalance').textContent = p.bonusBalance;
-    document.getElementById('profileEarnedBonuses').textContent = p.earnedBonuses;
-    document.getElementById('profileReferrals').textContent = p.referrals;
-    document.getElementById('profileGenTotal').textContent = g.total;
-    document.getElementById('profileGenSuccess').textContent = g.success;
-    document.getElementById('profileGenUnfinished').textContent = g.unfinished;
-    document.getElementById('profileGenCanceled').textContent = g.canceled;
+    const p = getProfileOrDemo();
+
+    // Your RPC fields:
+    const total = Number(p.total_generations ?? p.generations?.total ?? 0);
+    const done = Number(p.done_count ?? p.generations?.success ?? 0);
+    const notFinished = Number(p.not_finished_count ?? p.generations?.unfinished ?? 0);
+    const cancel = Number(p.cancel_count ?? p.generations?.canceled ?? 0);
+    const rate = Number(p.success_rate ?? (total ? Math.round((done / total) * 100) : 0));
+
+    document.getElementById('profileTokenBalance').textContent = p.balance ?? p.tokenBalance ?? 0;
+    document.getElementById('profileBonusBalance').textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
+    document.getElementById('profileEarnedBonuses').textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
+    document.getElementById('profileReferrals').textContent = p.referrals_count ?? p.referrals ?? 0;
+
+    document.getElementById('profileGenTotal').textContent = total;
+    document.getElementById('profileGenSuccess').textContent = done;
+    document.getElementById('profileGenUnfinished').textContent = notFinished;
+    document.getElementById('profileGenCanceled').textContent = cancel;
     document.getElementById('profileGenRate').textContent = `${rate}%`;
-    document.getElementById('profileGenRateHint').textContent = `Успешных: ${g.success} из ${g.total}`;
-    document.getElementById('profileRegisteredAt').textContent = utils.formatDate(p.registeredAt);
-    document.getElementById('profileReferralLink').value = p.referralLink;
-    
+    document.getElementById('profileGenRateHint').textContent = `Успешных: ${done} из ${total}`;
+
+    document.getElementById('profileRegisteredAt').textContent =
+      utils.formatDate(p.created_at ?? p.registeredAt ?? '');
+
+    const refCode = p.ref_code ?? '';
+    document.getElementById('profileReferralLink').value =
+      refCode ? `https://t.me/neurokartochkaBot?start=ref_${refCode}` : (p.referralLink ?? '');
+
     this.open(dom.profileModalOverlay);
   },
 
@@ -802,19 +864,37 @@ function initPromptBuilder() {
 
 // Инициализация приложения
 function initApp() {
-  setTimeout(() => {
+  setTimeout(async () => {
+    initTelegramWebApp();
+
     initPrompts();
-    
+
+    // Fetch profile from Edge Function (only works inside Telegram WebApp)
+    try {
+      runtimeProfile = await fetchProfileFromEdge();
+    } catch (e) {
+      console.error("Profile fetch failed:", e);
+      runtimeProfile = null;
+    }
+
     dom.loadingState.style.display = 'none';
     renderCategories();
     updatePrompts();
     updateStats();
-    
-    dom.invitedCount.textContent = demoData.profile.referrals;
-    dom.earnedBonuses.textContent = demoData.profile.earnedBonuses;
-    dom.bonusBalance.textContent = demoData.profile.bonusBalance;
-    dom.referralLink.value = demoData.profile.referralLink;
-    
+
+    // Fill referral / bonus preview on home screen
+    const p = getProfileOrDemo();
+
+    // These DOM elements exist on the main screen
+    dom.invitedCount.textContent = p.referrals_count ?? p.referrals ?? 0;
+    dom.earnedBonuses.textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
+    dom.bonusBalance.textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
+
+    const refCode = p.ref_code ?? (p.referralLink ? String(p.referralLink).split("ref_").pop() : "");
+    dom.referralLink.value = refCode
+      ? `https://t.me/neurokartochkaBot?start=ref_${refCode}`
+      : (p.referralLink ?? "");
+
     initPromptBuilder();
   }, CONFIG.INIT_DELAY);
 }
