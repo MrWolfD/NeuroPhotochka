@@ -1,1414 +1,2574 @@
-console.log("APP VERSION: 2025-12-29T15:11:32Z");
-'use strict';
+:root {
+  --primary: #111827;
+  --secondary: #374151;
+  --accent: #8B5CF6;
+  --accent-light: #A78BFA;
+  --accent-gradient: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F9FAFB;
+  --bg-card: #FFFFFF;
+  --bg-hover: #F3F4F6;
+  --border: #E5E7EB;
+  --border-light: #F3F4F6;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-tertiary: #9CA3AF;
+  --success: #10B981;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 4px 6px -1px rgba(0,0,0,0.05),0 2px 4px -1px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.08);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
 
-// Конфигурация
-const CONFIG = {
-  DEBOUNCE_DELAY: 300,
-  INIT_DELAY: 700,
-  STORAGE_KEY: 'neurophoto_favorites',
-  MIN_SWIPE_DISTANCE: 55,
-  TUTORIAL_KEY: 'neurophoto_tutorial_seen_session'
-};
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
-// ✅ Public anon key — можно хранить на фронте
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbWlyem1xbmNid2p6dHNjd3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MTAwMDksImV4cCI6MjA3OTk4NjAwOX0.D4UwlJ9lEfQZHc31max3xvoLzFIWCmuB9KNKnFkOY68";
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: radial-gradient(1200px 600px at 20% -10%, rgba(139,92,246,.10), transparent 60%),
+              radial-gradient(900px 500px at 85% 0%, rgba(59,130,246,.08), transparent 55%),
+              var(--bg-secondary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding-bottom: 84px;
+}
 
+/* === COMMON UTILITY STYLES === */
+.user-btn, .primary-btn, .secondary-btn, .icon-btn, .action-btn {
+  cursor: pointer;
+  transition: all .2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
 
-const BASE_FN = "https://pfmirzmqncbwjztscwyo.functions.supabase.co/functions/v1";
-const TG_PROFILE_URL = `${BASE_FN}/tg_profile`;
-const PROMPT_LIST_URL = `${BASE_FN}/prompt-list`;
-const PROMPT_FAVORITE_URL = `${BASE_FN}/prompt-favorite`;
-const PROMPT_COPY_URL = `${BASE_FN}/prompt_copy`;
-// --- Telegram WebApp + Supabase Edge profile ---
+/* === HEADER === */
+.header {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
 
-let runtimeProfile = null;
+.header-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
 
-function initTelegramWebApp() {
-  try {
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-    }
-  } catch (e) {
-    console.warn("Telegram WebApp init failed:", e);
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 36px; height: 36px;
+  background: var(--accent-gradient);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+}
+
+.mobile-search-row { display: none; }
+
+.search-container { flex: 1; max-width: 500px; position: relative; }
+.search-input {
+  width: 100%;
+  padding: 14px 20px 14px 52px;
+  background: var(--bg-secondary);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  color: var(--text-primary);
+  transition: all .2s ease;
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(139,92,246,.1);
+}
+.search-icon {
+  position: absolute;
+  left: 20px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.mobile-generate-btn { display: none; }
+
+/* User Menu */
+.user-menu { display: flex; align-items: center; gap: 16px; }
+
+.user-btn {
+  padding: 12px 24px;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  height: 44px;
+  white-space: nowrap;
+}
+.user-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+.icon-btn {
+  width: 44px; height: 44px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  position: relative;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
+.icon-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.icon-btn svg { width: 20px; height: 20px; }
+
+.fav-counter {
+  position: absolute;
+  top: -6px; right: -6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === HERO BANNER === */
+.hero-banner {
+  background: var(--accent-gradient);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  color: #fff;
+  margin: 32px auto 0;
+  max-width: 1280px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 600px;
+}
+
+.hero-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.hero-subtitle {
+  font-size: 16px;
+  opacity: .9;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+/* === MAIN CONTAINER === */
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+/* Filter Tabs */
+.filter-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.filter-tab {
+  padding: 12px 24px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+}
+.filter-tab:hover { border-color: var(--accent); color: var(--accent); }
+.filter-tab.active { background: var(--accent-gradient); border-color: var(--accent); color: #fff; }
+
+.stats-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  flex-wrap: nowrap; /* Добавляем для предотвращения переноса на мобильных */
+}
+.stats-info { 
+  font-size: 14px; 
+  color: var(--text-secondary);
+  white-space: nowrap; /* Добавляем чтобы текст не переносился */
+}
+.stats-info strong { color: var(--text-primary); }
+
+.sort-select {
+  padding: 8px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap; /* Добавляем чтобы текст в селекте не переносился */
+  min-width: 180px; /* Фиксируем минимальную ширину */
+}
+
+/* === ADAPTIVE CARDS GRID === */
+.cards-grid {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 32px;
+  /* Мобильные: 2 колонки */
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* На очень маленьких мобильных - 2 колонки (как есть) */
+@media (max-width: 360px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
-function getTelegramInitData() {
-  return window.Telegram?.WebApp?.initData || "";
-}
-
-/**
- * Нормализуем любой формат, который может прийти из Edge Function:
- * - { ok, uid, profile: {...} }
- * - { ok, uid, profile: [{...}] }
- * - { ... } (без обёртки)
- * - [{...}] (если вдруг вернули массив напрямую)
- */
-function normalizeProfilePayload(payload) {
-  if (payload == null) return null;
-
-  // Если payload — строка (например, вернули текст), пытаемся распарсить
-  if (typeof payload === 'string') {
-    try {
-      payload = JSON.parse(payload);
-    } catch {
-      return null;
-    }
-  }
-
-  // если пришёл массив — берём первую строку
-  if (Array.isArray(payload)) {
-    return payload[0] ?? null;
-  }
-
-  // если пришёл объект с profile
-  const p = payload.profile ?? payload.data ?? payload;
-
-  if (Array.isArray(p)) return p[0] ?? null;
-  if (p && typeof p === 'object') return p;
-
-  return null;
-}
-
-async function fetchProfileFromEdge() {
-  const initData = getTelegramInitData();
-
-  if (!initData) {
-    console.warn("No initData — opened outside Telegram WebApp");
-    return null;
-  }
-
-  const res = await fetch(TG_PROFILE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // ✅ Без этого Supabase Edge Function часто отдаёт 401
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({ initData })
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`tg_profile HTTP ${res.status}: ${text}`);
-  }
-
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch (e) {
-    throw new Error("tg_profile returned non-JSON");
-  }
-
-  const profile = normalizeProfilePayload(json);
-
-  return profile;
-}
-
-function getProfileOrDemo() {
-  return runtimeProfile || demoData.profile;
-}
-
-// --- Prompts from Supabase Edge ---
-function normalizePromptListPayload(payload) {
-  if (payload == null) return [];
-  const items = payload.items ?? payload.data ?? payload;
-  return Array.isArray(items) ? items : [];
-}
-
-function mapPromptFromDb(p) {
-  const categories = Array.isArray(p.categories) ? p.categories : [];
-  const category = categories.length ? String(categories[0]) : 'без категории';
-
-  return {
-    id: Number(p.id),
-    title: String(p.title ?? ''),
-    description: String(p.description ?? ''),
-    promptText: String(p.prompt_text ?? ''),
-    image: String(p.image_url ?? ''),
-    category,
-    tags: categories,
-
-    // UI-цифры (пока персональные, если сервер не даёт общие)
-    copies: Number(p.copies_by_user ?? 0),
-    favorites: Number(p.favorites_count ?? 0),
-
-    is_favorite: Boolean(p.is_favorite ?? false),
-  };
-}
-
-async function callEdge(url, payload) {
-  const initData = getTelegramInitData();
-  if (!initData) return { ok: false, message: "No initData" };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({ initData, ...payload }),
-  });
-
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Edge HTTP ${res.status}: ${text}`);
-
-  try { return JSON.parse(text); } catch { throw new Error("Edge returned non-JSON"); }
-}
-
-async function fetchPromptsFromEdge() {
-  const json = await callEdge(PROMPT_LIST_URL, { page: 1, limit: 200 });
-  const items = normalizePromptListPayload(json);
-  return items.map(mapPromptFromDb);
-}
-
-
-async function loadPrompts() {
-  try {
-    state.isLoading = true;
-    // показываем лоадер, если есть
-    if (dom.loadingState) dom.loadingState.style.display = 'flex';
-
-    const prompts = await fetchPromptsFromEdge();
-
-    // ✅ Никаких дефолтных промптов: если пусто — показываем пустое состояние
-    state.prompts = Array.isArray(prompts) ? prompts : [];
-    state.filteredPrompts = [];
-    state.isLoading = false;
-
-    // перерисовка категорий и списка
-    renderCategories();
-    updatePrompts();
-    updateStats();
-  } catch (e) {
-    console.error("loadPrompts failed:", e);
-    state.prompts = [];
-    state.filteredPrompts = [];
-    state.isLoading = false;
-    renderCategories();
-    updatePrompts();
-    updateStats();
-  } finally {
-    if (dom.loadingState) dom.loadingState.style.display = 'none';
+/* Планшеты (от 480px): 3 колонки */
+@media (min-width: 480px) {
+  .cards-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
   }
 }
 
-function findPromptById(promptId) {
-  return state.prompts.find(p => Number(p.id) === Number(promptId)) || null;
-}
-
-async function toggleFavoriteEdge(promptId) {
-  const prompt = findPromptById(promptId);
-  if (!prompt) return;
-
-  try {
-    const res = await callEdge(PROMPT_FAVORITE_URL, { prompt_id: Number(promptId) });
-
-    // Ожидаемые варианты ответа:
-    // { ok:true, is_favorite:true/false, favorites_count:number }
-    // { ok:true, favorite:true/false, favorites:number }
-    const isFav = Boolean(res?.is_favorite ?? res?.favorite ?? res?.active ?? !prompt.is_favorite);
-    const favCount = res?.favorites_count ?? res?.favorites ?? null;
-
-    prompt.is_favorite = isFav;
-    if (typeof favCount === 'number') {
-      prompt.favorites = favCount;
-    } else {
-      // если бэк не вернул число — обновляем локально (минимально корректно)
-      prompt.favorites = Math.max(0, Number(prompt.favorites || 0) + (isFav ? 1 : -1));
-    }
-
-    // синхроним модалку, если открыта
-    const favBtn = document.getElementById('promptModalFavBtn');
-    const favCounter = document.getElementById('promptModalFavorites');
-    if (dom.promptModalOverlay?.classList.contains('show')) {
-      if (favBtn) favBtn.textContent = isFav ? '❤ В избранном' : '❤ В избранное';
-      if (favCounter) favCounter.textContent = String(prompt.favorites || 0);
-    }
-
-    onPromptMetricsChanged(promptId);
-    utils.showToast(isFav ? 'Добавлено в избранное' : 'Удалено из избранного');
-  } catch (e) {
-    console.warn("prompt-favorite failed:", e);
-    utils.showToast('Не удалось обновить избранное', 'error');
+/* Небольшие ноутбуки/планшеты горизонтально (от 768px): 4 колонки */
+@media (min-width: 768px) {
+  .cards-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
   }
 }
 
-
-// --- /Prompts from Supabase Edge ---
-
-// --- /Telegram WebApp + profile ---
-
-// Состояние приложения
-const state = {
-  prompts: [],
-  filteredPrompts: [],
-  favorites: [],
-  activeCategories: new Set(['все']),
-  searchQuery: '',
-  sortBy: 'default',
-  isLoading: true,
-  showOnlyFavorites: false,
-  modalIndex: 0
-};
-
-// Демо-данные
-const demoData = {
-  profile: {
-    userId: 224753455,
-    registeredAt: "2025-11-03",
-    tokenBalance: 1460,
-    bonusBalance: 120,
-    earnedBonuses: 340,
-    referrals: 12,
-    generations: { total: 98, success: 79, unfinished: 11, canceled: 8 },
-    referralLink: "https://t.me/neurophoto_bot?start=ref_224753455"
-  },
-
-  prompts: []
-};
-
-// Кэш DOM элементов
-const dom = {
-  cardsGrid: document.getElementById('cardsGrid'),
-  filterTabs: document.getElementById('filterTabs'),
-  visibleCount: document.getElementById('visibleCount'),
-  totalCount: document.getElementById('totalCount'),
-  sortSelect: document.getElementById('sortSelect'),
-  loadingState: document.getElementById('loadingState'),
-  appContainer: document.getElementById('appContainer'),
-  toast: document.getElementById('toast'),
-  searchInput: document.getElementById('searchInput'),
-  favoritesBtn: document.getElementById('favoritesBtn'),
-  generateBtn: document.getElementById('generateBtn'),
-  mobileGenerateBtn: document.getElementById('mobileGenerateBtn'),
-  tryFreeBtn: document.getElementById('tryFreeBtn'),
-  invitedCount: document.getElementById('invitedCount'),
-  earnedBonuses: document.getElementById('earnedBonuses'),
-  bonusBalance: document.getElementById('bonusBalance'),
-  referralLink: document.getElementById('referralLink'),
-  copyReferralBtn: document.getElementById('copyReferralBtn'),
-  profileBtn: document.getElementById('profileBtn'),
-  promptModalOverlay: document.getElementById('promptModalOverlay'),
-  profileModalOverlay: document.getElementById('profileModalOverlay'),
-  constructorModalOverlay: document.getElementById('constructorModalOverlay'),
-  tutorialModalOverlay: document.getElementById('tutorialModalOverlay'),
-  tutorialGotItBtn: document.getElementById('tutorialGotItBtn')
-};
-
-// Утилиты
-const utils = {
-  debounce(func, wait) {
-    let timeout;
-    return (...args) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), wait);
-    };
-  },
-
-  async copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-
-  formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return isNaN(date.getTime())
-      ? dateStr
-      : date.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' });
-  },
-
-  showToast(message, type = 'success') {
-    const icon = type === 'success'
-      ? '<path d="M20 6L9 17l-5-5"></path>'
-      : '<circle cx="12" cy="12" r="10"></circle><path d="m15 9-6 6M9 9l6 6"></path>';
-
-    dom.toast.innerHTML = `
-      <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon}</svg>
-      <span>${message}</span>
-    `;
-
-    dom.toast.classList.add('show');
-    setTimeout(() => dom.toast.classList.remove('show'), 2600);
+/* Средние ноутбуки (от 1024px): 5 колонок */
+@media (min-width: 1024px) {
+  .cards-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
   }
-};
-
-// Основные функции
-function renderCategories() {
-  const categories = ['все', ...new Set(state.prompts.map(p => p.category))];
-
-  dom.filterTabs.innerHTML = categories.map(cat => {
-    const isActive = state.activeCategories.has(cat);
-    const isAll = cat === 'все';
-    const allActiveButOthers = isAll && state.activeCategories.size > 1;
-
-    return `
-      <div class="filter-tab ${isActive ? 'active' : ''} ${allActiveButOthers ? 'all-active' : ''}"
-           data-category="${cat}">
-        ${cat.charAt(0).toUpperCase() + cat.slice(1)}
-      </div>
-    `;
-  }).join('');
 }
 
-function renderPrompts() {
-  if (state.filteredPrompts.length === 0) {
-    const emptyState = state.showOnlyFavorites
-      ? {
-        icon: '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>',
-        title: 'В избранном пока пусто',
-        text: 'Открывайте промпты и нажимайте на сердечко, чтобы быстро находить их и копировать в бот'
-      }
-      : {
-        icon: '<circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path>',
-        title: 'Промпты не найдены',
-        text: 'Попробуйте изменить фильтры или поиск'
-      };
-
-    dom.cardsGrid.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1;">
-        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">${emptyState.icon}</svg>
-        <h3>${emptyState.title}</h3>
-        <p>${emptyState.text}</p>
-      </div>
-    `;
-    return;
+/* Большие экраны (от 1280px): 5 колонок с увеличенным зазором */
+@media (min-width: 1280px) {
+  .cards-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 22px;
   }
-
-  dom.cardsGrid.innerHTML = state.filteredPrompts.map(prompt => `
-    <div class="prompt-card" data-id="${prompt.id}">
-      <img src="${prompt.image}"
-           alt="${prompt.title}"
-           class="prompt-image"
-           loading="lazy"
-           onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;300&quot; height=&quot;400&quot;><rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;%23f3f4f6&quot;/></svg>'">
-      <div class="prompt-content">
-        <div class="prompt-meta">
-          <div class="prompt-stats">
-            <div class="stat-item" title="Копирований">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span class="stat-value" data-stat="copies">${prompt.copies}</span>
-            </div>
-            <div class="stat-item" title="Добавлено в избранное">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-              </svg>
-              <span class="stat-value" data-stat="favorites">${prompt.favorites}</span>
-            </div>
-          </div>
-          <div class="prompt-actions">
-            <button class="action-btn copy-btn" data-id="${prompt.id}" title="Копировать промпт">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            </button>
-            <button class="action-btn favorite-btn ${prompt.is_favorite ? 'active' : ''}"
-                    data-id="${prompt.id}"
-                    title="${prompt.is_favorite ? 'Удалить из избранного' : 'Добавить в избранное'}">
-              <svg width="18" height="18" viewBox="0 0 24 24"
-                   fill="${prompt.is_favorite ? 'currentColor' : 'none'}"
-                   stroke="currentColor" stroke-width="2">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `).join('');
 }
 
-function updatePrompts() {
-  let filtered = [...state.prompts];
-
-  if (state.showOnlyFavorites) {
-    filtered = filtered.filter(p => p.is_favorite);
+/* Очень широкие экраны (от 1600px): 5 колонок */
+@media (min-width: 1600px) {
+  .cards-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 24px;
   }
-
-  const categories = new Set(state.activeCategories);
-  const onlyAll = categories.size === 1 && categories.has('все');
-
-  if (!onlyAll) {
-    categories.delete('все');
-    if (categories.size > 0) {
-      filtered = filtered.filter(p => categories.has(p.category));
-    }
-  }
-
-  if (state.searchQuery) {
-    const query = state.searchQuery.toLowerCase();
-    filtered = filtered.filter(p =>
-      p.title.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.tags.some(tag => String(tag).toLowerCase().includes(query))
-    );
-  }
-
-  filtered.sort((a, b) => {
-    switch (state.sortBy) {
-      case 'default': return (b.copies + b.favorites) - (a.copies + a.favorites);
-      case 'new': return b.id - a.id;
-      case 'copies': return b.copies - a.copies;
-      case 'favorites': return b.favorites - a.favorites;
-      default: return 0;
-    }
-  });
-
-  state.filteredPrompts = filtered;
-  renderPrompts();
-  updateStats();
 }
 
-function updateStats() {
-  dom.visibleCount.textContent = state.filteredPrompts.length;
-  dom.totalCount.textContent = state.prompts.length;
+/* === ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ КАРТОЧЕК С КНОПКОЙ КОПИРОВАНИЯ === */
+.prompt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all .22s cubic-bezier(.4,0,.2,1);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.prompt-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 32px rgba(17,24,39,.12), 0 0 0 1px rgba(139,92,246,.10);
+  border-color: rgba(139,92,246,.35);
+}
+.prompt-card:hover::after {
+  content: 'Нажмите чтобы открыть';
+  position: absolute;
+  left: 14px; bottom: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15,23,42,.72);
+  color: rgba(255,255,255,.92);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.prompt-image {
+  width: 100%;
+  aspect-ratio: 3/4;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.prompt-badge {
+  position: absolute;
+  top: 12px; right: 12px;
+  padding: 5px 10px;
+  background: rgba(255,255,255,.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid rgba(139,92,246,.2);
+  z-index: 1;
+}
+
+/* Обновленный контейнер контента с фиксированной нижней частью */
+.prompt-content {
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ФИКСИРОВАННАЯ НИЖНЯЯ ЧАСТЬ С ТРЕМЯ ЭЛЕМЕНТАМИ */
+.prompt-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: none;
+  flex-shrink: 0;
+}
+
+.prompt-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Контейнер для кнопок в правой части */
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Общие стили для кнопок действий */
+.action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* Специфические стили для кнопки копирования */
+.copy-btn {
+  position: relative;
+}
+.copy-btn:hover::after {
+  content: 'Копировать';
+  position: absolute;
+  top: -30px;
+  right: 0;
+  padding: 4px 8px;
+  background: rgba(15,23,42,.85);
+  color: white;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Специфические стили для кнопки избранного */
+.favorite-btn.active {
+  background: var(--accent-gradient);
+  border-color: var(--accent);
+  color: #fff;
+  animation: heartBeat .4s ease;
+}
+
+@keyframes heartBeat {
+  0%{transform:scale(1)}
+  50%{transform:scale(1.2)}
+  100%{transform:scale(1)}
+}
+
+/* Адаптация контента карточки под разные размеры */
+@media (min-width: 768px) {
+  .prompt-card {
+    min-height: 380px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .prompt-card {
+    min-height: 400px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .prompt-card {
+    min-height: 420px;
+  }
+}
+
+/* === REFERRAL SECTION === */
+.referral-section {
+  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  margin-top: 60px;
+  border: 1px solid var(--border-light);
+}
+
+.referral-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.referral-icon {
+  width: 48px; height: 48px;
+  background: var(--accent-gradient);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.referral-title { font-size: 28px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.referral-subtitle { font-size: 16px; color: var(--text-secondary); margin-top: 4px; }
+
+.referral-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.referral-stat {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  border: 1px solid var(--border);
+  transition: all .3s;
+}
+.referral-stat:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: var(--accent-light); }
+
+.stat-value { font-size: 32px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.stat-label { font-size: 14px; color: var(--text-secondary); }
+
+.highlight-stat {
+  background: var(--accent-gradient);
+  color: #fff;
+  border: none;
+}
+.highlight-stat .stat-value,
+.highlight-stat .stat-label { color: #fff; }
+.highlight-stat .stat-label { opacity: .9; }
+
+.referral-link-section {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  border: 1px solid var(--border);
+}
+
+.link-wrapper {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.link-input {
+  flex: 1;
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'Monaco','Menlo',monospace;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.primary-btn {
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 190px;
+}
+.primary-btn:hover { transform: translateY(-1px); filter: brightness(1.02); box-shadow: 0 16px 36px rgba(139,92,246,.34); }
+.primary-btn.is-copied { animation: btnPop .65s ease; }
+@keyframes btnPop {
+  0%{transform:translateY(0)scale(1)}
+  35%{transform:translateY(0)scale(.98)}
+  70%{transform:translateY(-1px)scale(1.02)}
+  100%{transform:translateY(0)scale(1)}
+}
+
+.secondary-btn {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.secondary-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
+
+.referral-info {
+  padding: 16px;
+  background: rgba(139,92,246,.05);
+  border-radius: var(--radius);
+  border: 1px solid rgba(139,92,246,.2);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.referral-info strong { color: var(--accent); }
+
+/* === MODALS === */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17,24,39,.6);
+  backdrop-filter: blur(6px);
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 2000;
+  display: none;
+}
+.modal-overlay.show { display: flex; }
+
+/* ОБЩИЕ СТИЛИ МОДАЛЬНЫХ ОКОН */
+.modal {
+  width: min(920px, 100%);
+  max-height: min(90vh, 900px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.modal-subtitle { margin-top: 6px; color: var(--text-secondary); font-size: 13px; }
+
+.modal-close {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+.modal-close:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
+
+/* Modal Grid */
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  grid-template-areas: "left right""left actions";
+  gap: 18px;
+  align-items: start;
+}
+.col-left { grid-area: left; }
+.col-right { grid-area: right; }
+.detail-side-under {
+  grid-area: actions;
+  background: var(--bg-card);
+  border: 1px solid rgba(17,24,39,.10);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 8px 22px rgba(17,24,39,.06);
+}
+
+/* Carousel */
+.carousel {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  aspect-ratio: 3/4;
+  height: auto;
+  touch-action: pan-y;
+}
+.carousel img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.carousel-nav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  padding: 0 10px;
+}
+
+.carousel-btn {
+  pointer-events: auto;
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: rgba(17,24,39,.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.carousel-btn:hover { background: rgba(17,24,39,.62); }
+
+.carousel-counter {
+  position: absolute;
+  bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(17,24,39,.55);
+  font-size: 13px;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.25);
+}
+
+/* Detail Actions */
+.detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(17,24,39,.08);
+}
+.detail-actions .primary-btn,
+.detail-actions .secondary-btn {
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+/* Prompt Textarea */
+.prompt-label { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.prompt-textarea {
+  width: 100%;
+  height: 350px;
+  padding: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  resize: none;
+}
+.prompt-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(139,92,246,.1);
+}
+
+/* KV Cards (общие) */
+.kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0; }
+.kv-card {
+  background: rgba(17,24,39,.02);
+  border: 1px solid rgba(17,24,39,.08);
+  border-radius: 14px;
+  padding: 12px;
+  height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.kv-card.wide { grid-column: 1/-1; }
+.kv-card .k { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.kv-card .v { font-size: 18px; font-weight: 800; letter-spacing: -.2px; color: var(--text-primary); line-height: 1; }
+
+.modal-note { margin-top: 10px; color: var(--text-tertiary); font-size: 13px; line-height: 1.5; }
+.section-title { margin-top: 18px; font-size: 14px; font-weight: 800; color: var(--text-primary); }
+.divider { height: 1px; background: var(--border-light); margin: 16px 0; }
+
+/* === МОДАЛЬНОЕ ОКНО ПРОФИЛЯ (УЛУЧШЕННЫЙ ДИЗАЙН) === */
+#profileModalOverlay .modal {
+  width: min(680px, 96vw);
+  max-height: min(85vh, 800px);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+#profileModalOverlay .modal-header {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: white;
+  padding: 24px 28px;
+  border-bottom: none;
+  position: relative;
+  overflow: hidden;
+}
+
+#profileModalOverlay .modal-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.15) 0%, transparent 50%);
+}
+
+#profileModalOverlay .modal-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 4px;
+}
+
+#profileModalOverlay .modal-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  color: rgba(255,255,255,0.9);
+  margin-top: 0;
+}
+
+#profileModalOverlay .modal-close {
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: white;
+  backdrop-filter: blur(10px);
+  z-index: 2;
+}
+
+#profileModalOverlay .modal-close:hover {
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.5);
+}
+
+#profileModalOverlay .modal-body {
+  padding: 28px;
+  background: var(--bg-secondary);
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Группы статистики с карточками */
+#profileModalOverlay .section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border-light);
+}
+
+#profileModalOverlay .section-title::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Обновленная сетка статистики */
+#profileModalOverlay .kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+#profileModalOverlay .kv-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  height: auto;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+#profileModalOverlay .kv-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #8B5CF6, #A78BFA);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+#profileModalOverlay .kv-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+#profileModalOverlay .kv-card:hover::before {
+  opacity: 1;
+}
+
+#profileModalOverlay .kv-card .k {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+#profileModalOverlay .kv-card .v {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#profileModalOverlay .kv-card.highlight {
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  border: none;
+  color: white;
+}
+
+#profileModalOverlay .kv-card.highlight .k,
+#profileModalOverlay .kv-card.highlight .v {
+  color: white;
+}
+
+#profileModalOverlay .kv-card.highlight::before {
+  display: none;
+}
+
+/* Широкая карточка для успешности генераций */
+#profileModalOverlay .kv-card.wide {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+}
+
+#profileModalOverlay .kv-card.wide .v {
+  font-size: 32px;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+#profileModalOverlay .kv-card.wide .modal-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(139, 92, 246, 0.1);
+}
+
+/* Секция с реферальной ссылкой */
+#profileModalOverlay .referral-section {
+  background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  margin-top: 8px;
+}
+
+#profileModalOverlay .link-wrapper {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+#profileModalOverlay .link-input {
+  flex: 1;
+  padding: 14px 18px;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+#profileModalOverlay .primary-btn {
+  padding: 14px 22px;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#profileModalOverlay .primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(139, 92, 246, 0.25);
+}
+
+#profileModalOverlay .referral-info {
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: rgba(139, 92, 246, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+#profileModalOverlay .referral-info strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Делитель с иконкой */
+#profileModalOverlay .divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-light), transparent);
+  margin: 8px 0;
+  position: relative;
+}
+
+#profileModalOverlay .divider::before {
+  content: '●';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  padding: 0 10px;
+}
+
+/* Анимация появления карточек */
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#profileModalOverlay .kv-card {
+  animation: slideUpFade 0.4s ease-out backwards;
+}
+
+#profileModalOverlay .kv-card:nth-child(1) { animation-delay: 0.1s; }
+#profileModalOverlay .kv-card:nth-child(2) { animation-delay: 0.15s; }
+#profileModalOverlay .kv-card:nth-child(3) { animation-delay: 0.2s; }
+#profileModalOverlay .kv-card:nth-child(4) { animation-delay: 0.25s; }
+
+/* === TOAST === */
+.toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  background: #fff;
+  color: var(--text-primary);
+  padding: 16px 24px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  z-index: 2100;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  max-width: 400px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* === PROMPT BUILDER STYLES === */
+.pb-wrap {
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  border-radius: 0;
+  padding: 0;
+  max-width: 100%;
+  margin: 0 auto;
+  position: relative;
+  overflow: visible;
+}
+
+.pb-progress-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.pb-progress-track {
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.pb-progress-fill {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 6px;
+  transition: width .4s ease;
+}
+
+.pb-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pb-progress-info span {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pb-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pb-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all .2s ease;
+}
+
+.pb-section:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.pb-section__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background .2s ease;
+}
+
+.pb-section__head:hover {
+  background: var(--bg-hover);
+}
+
+.pb-section__head-left {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex: 1;
+}
+
+.pb-section__icon {
+  font-size: 20px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139,92,246,.1);
+  border-radius: 8px;
+  color: var(--accent);
+}
+
+.pb-section__title-wrap {
+  flex: 1;
+}
+
+.pb-section__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.pb-section__desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.pb-section__head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pb-section__current {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(139,92,246,.1);
+  padding: 8px 14px;
+  border-radius: 20px;
+  min-width: 100px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid rgba(139,92,246,.2);
+}
+
+.pb-section__counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.pb-section__arrow {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  transition: transform .2s ease;
+}
+
+.pb-section.is-collapsed .pb-section__arrow {
+  transform: rotate(-90deg);
+}
+
+.pb-section__body {
+  padding: 4px 18px 18px;
+}
+
+.pb-section__note {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+}
+
+.pb-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+  user-select: none;
+  text-align: left;
+}
+
+.pb-pill:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
+}
+
+.pb-pill.is-active {
+  background: rgba(139,92,246,.1);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(139,92,246,.1);
+}
+
+.pb-pill__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.pb-pill__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.pb-output {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin-top: 24px;
+}
+
+.pb-output__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pb-output__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pb-output__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pb-output__stats {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.pb-output__tools {
+  display: flex;
+  gap: 8px;
+}
+
+.pb-tool {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.pb-tool:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.pb-textarea-wrapper {
+  position: relative;
+  padding: 20px;
+}
+
+.pb-textarea {
+  width: 100%;
+  min-height: 140px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: 'JetBrains Mono','Cascadia Code',Consolas,monospace;
+  line-height: 1.6;
+  resize: vertical;
+  transition: all .2s ease;
+}
+
+.pb-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 3px rgba(139,92,246,.1);
+}
+
+.pb-textarea-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.pb-textarea-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.pb-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* Desktop — две кнопки в линию */
+@media (min-width: 768px) {
+  .pb-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pb-actions .primary-btn,
+.pb-actions .secondary-btn {
+  width: 100%;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: var(--radius);
+}
+
+.pb-actions .primary-btn {
+  background: var(--accent-gradient);
+  color: #fff;
+  border: none;
+}
+
+.pb-actions .primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.pb-actions .secondary-btn {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1.5px solid var(--border);
+}
+
+.pb-actions .secondary-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.pb-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--success);
+  color: white;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all .3s ease;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Tutorial Modal Styles */
+.tutorial-modal {
+  max-width: 560px;
+  max-height: 80vh;
+}
+
+.tutorial-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.tutorial-step {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.tutorial-step-icon {
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tutorial-step-content {
+  flex: 1;
+}
+
+.tutorial-step-content h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.tutorial-step-content p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.tutorial-step-content a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.tutorial-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* === МОБИЛЬНЫЕ СТИЛИ С МИНИМАЛЬНЫМИ РАССТОЯНИЯМИ === */
+@media (max-width: 768px) {
+  body { padding-bottom: 64px; }
   
-  const statsInfo = document.querySelector('.stats-info');
-  if (statsInfo) {
-    statsInfo.innerHTML = `<strong id="visibleCount">${state.filteredPrompts.length}</strong> из <strong id="totalCount">${state.prompts.length}</strong>`;
+  /* Header */
+  .header { padding: 12px 14px; }
+  .header-content {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 10px 12px;
+    align-items: center;
   }
-
-  const favCount = state.prompts.filter(p => p.is_favorite).length;
-
-  dom.favoritesBtn.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 24 24"
-         fill="${(favCount > 0 || state.showOnlyFavorites) ? 'currentColor' : 'none'}"
-         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-    </svg>
-    ${favCount > 0 ? `<span class="fav-counter">${favCount}</span>` : ''}
-  `;
-
-  dom.favoritesBtn.classList.toggle('active', state.showOnlyFavorites);
-
-  if (dom.profileBtn && !dom.profileBtn.innerHTML.trim()) {
-    dom.profileBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21a8 8 0 0 0-16 0"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-      </svg>
-    `;
-  }
-}
-
-
-// ---- UI updates without full re-render (prevents flicker) ----
-function applyFiltersAndSort(prompts) {
-  let filtered = [...prompts];
-
-  // только избранное
-  if (state.showOnlyFavorites) {
-    filtered = filtered.filter(p => !!p.is_favorite);
-  }
-
-  // категории
-  if (state.activeCategories && state.activeCategories.size) {
-    filtered = filtered.filter(p => state.activeCategories.has(p.category));
-  }
-
-  // поиск
-  const query = (state.searchQuery || '').toLowerCase().trim();
-  if (query) {
-    filtered = filtered.filter(p =>
-      String(p.title || '').toLowerCase().includes(query) ||
-      String(p.description || '').toLowerCase().includes(query) ||
-      (Array.isArray(p.tags) && p.tags.some(tag => String(tag).toLowerCase().includes(query)))
-    );
-  }
-
-  // сортировка (как в updatePrompts)
-  filtered.sort((a, b) => {
-    switch (state.sortBy) {
-      case 'default': return ((b.copies || 0) + (b.favorites || 0)) - ((a.copies || 0) + (a.favorites || 0));
-      case 'new': return (b.id || 0) - (a.id || 0);
-      case 'copies': return (b.copies || 0) - (a.copies || 0);
-      case 'favorites': return (b.favorites || 0) - (a.favorites || 0);
-      default: return 0;
-    }
-  });
-
-  return filtered;
-}
-
-function updatePromptUI(promptId) {
-  const id = String(promptId);
-  const prompt = state.prompts.find(p => String(p.id) === id);
-  if (!prompt) return;
-
-  // карточка в списке
-  const card = dom.promptGrid?.querySelector?.(`.prompt-card[data-id="${id}"]`);
-  if (card) {
-    const copiesEl = card.querySelector('[data-stat="copies"]');
-    if (copiesEl) copiesEl.textContent = String(prompt.copies || 0);
-
-    const favEl = card.querySelector('[data-stat="favorites"]');
-    if (favEl) favEl.textContent = String(prompt.favorites || 0);
-
-    const favBtn = card.querySelector('.favorite-btn');
-    if (favBtn) favBtn.classList.toggle('active', !!prompt.is_favorite);
-  }
-
-  // модалка (если открыта именно эта карточка)
-  const openId = dom.modal?.dataset?.id;
-  if (openId && String(openId) === id) {
-    if (dom.modalCopiesCount) dom.modalCopiesCount.textContent = String(prompt.copies || 0);
-    if (dom.modalFavCount) dom.modalFavCount.textContent = String(prompt.favorites || 0);
-    if (dom.modalFavBtn) dom.modalFavBtn.classList.toggle('active', !!prompt.is_favorite);
-  }
-}
-
-function moveCardToSortedPosition(promptId) {
-  const id = String(promptId);
-  state.filteredPrompts = applyFiltersAndSort(state.prompts);
-
-  const container = dom.promptGrid;
-  if (!container) return;
-
-  const card = container.querySelector(`.prompt-card[data-id="${id}"]`);
-  if (!card) return;
-
-  const ids = state.filteredPrompts.map(p => String(p.id));
-  const idx = ids.indexOf(id);
-
-  // если карточка больше не должна отображаться — убираем
-  if (idx === -1) {
-    card.remove();
-    return;
-  }
-
-  // вставляем перед следующей карточкой в "идеальном" порядке
-  const nextId = ids[idx + 1];
-  if (nextId) {
-    const nextEl = container.querySelector(`.prompt-card[data-id="${nextId}"]`);
-    if (nextEl && nextEl !== card) {
-      container.insertBefore(card, nextEl);
-      return;
-    }
-  }
-  // иначе — в конец
-  if (container.lastElementChild !== card) container.appendChild(card);
-}
-
-function onPromptMetricsChanged(promptId) {
-  updatePromptUI(promptId);
-
-  // если сортировка зависит от копий/избранного или включен показ только избранного —
-  // аккуратно переместим карточку, без пересоздания всего списка
-  if (state.showOnlyFavorites || state.sortBy === 'copies' || state.sortBy === 'favorites' || state.sortBy === 'default') {
-    moveCardToSortedPosition(promptId);
-  }
-
-  updateStats();
-}
-// ------------------------------------------------------------
-
-function isMobileView() {
-  return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
-}
-
-function initPrompts() {
-  state.prompts = [];
-  state.filteredPrompts = [];
-  state.isLoading = true;
-  if (dom.loadingState) dom.loadingState.style.display = 'flex';
-}
-
-function syncPromptModalStatsPlacement() {
-  const stats = document.getElementById('promptModalStats');
-  const dock = document.getElementById('promptModalStatsDock');
-  const carousel = document.getElementById('promptCarousel');
-
-  if (!stats || !dock || !carousel) return;
-
-  if (isMobileView()) {
-    if (stats.parentElement !== carousel) carousel.appendChild(stats);
-  } else {
-    if (stats.parentElement !== dock) dock.appendChild(stats);
-  }
-}
-
-// Modal функции
-const modal = {
-  currentIndex: 0,
-
-  open(el) {
-    el.classList.add('show');
-    el.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('modal-open');
-    document.body.style.overflow = 'hidden';
-
-    const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-    if (focusable.length) {
-      focusable[0].focus();
-    }
-  },
-
-  close(el) {
-    el.classList.remove('show');
-    el.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-
-    if (el.lastFocusedElement) {
-      el.lastFocusedElement.focus();
-    }
-  },
-
-  openPrompt(promptId) {
-    const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
-    const idx = list.findIndex(p => p.id === promptId);
-
-    if (idx < 0) return;
-
-    this.currentIndex = idx;
-    const prompt = list[idx];
-
-    document.getElementById('promptModalSubtitle').textContent = prompt.category ? `Категория: ${prompt.category}` : '';
-
-    const img = document.getElementById('promptModalImage');
-    img.src = prompt.image;
-    img.alt = prompt.title;
-
-    document.getElementById('promptModalText').value = prompt.promptText || '';
-    document.getElementById('promptModalCopies').textContent = prompt.copies || 0;
-    document.getElementById('promptModalFavorites').textContent = prompt.favorites || 0;
-    document.getElementById('promptModalFavBtn').textContent =
-      prompt.is_favorite ? '❤ В избранном' : '❤ В избранное';
-    document.getElementById('promptCarouselCounter').textContent = `${this.currentIndex + 1} / ${list.length}`;
-
-    syncPromptModalStatsPlacement();
-    this.open(dom.promptModalOverlay);
-  },
-
-  prev() {
-    const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
-    this.currentIndex = (this.currentIndex - 1 + list.length) % list.length;
-    const prompt = list[this.currentIndex];
-    if (prompt) this.openPrompt(prompt.id);
-  },
-
-  next() {
-    const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
-    this.currentIndex = (this.currentIndex + 1) % list.length;
-    const prompt = list[this.currentIndex];
-    if (prompt) this.openPrompt(prompt.id);
-  },
-
-  openProfile() {
-    const p = getProfileOrDemo();
-
-    const total = Number(p.total_generations ?? p.generations?.total ?? 0);
-    const done = Number(p.done_count ?? p.generations?.success ?? 0);
-    const notFinished = Number(p.not_finished_count ?? p.generations?.unfinished ?? 0);
-    const cancel = Number(p.cancel_count ?? p.generations?.canceled ?? 0);
-    const rate = Number(p.success_rate ?? (total ? Math.round((done / total) * 100) : 0));
-
-    document.getElementById('profileTokenBalance').textContent = p.balance ?? p.tokenBalance ?? 0;
-    document.getElementById('profileBonusBalance').textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
-    document.getElementById('profileEarnedBonuses').textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
-    document.getElementById('profileReferrals').textContent = p.referrals_count ?? p.referrals ?? 0;
-
-    document.getElementById('profileGenTotal').textContent = total;
-    document.getElementById('profileGenSuccess').textContent = done;
-    document.getElementById('profileGenUnfinished').textContent = notFinished;
-    document.getElementById('profileGenCanceled').textContent = cancel;
-    document.getElementById('profileGenRate').textContent = `${rate}%`;
-    document.getElementById('profileGenRateHint').textContent = `Успешных: ${done} из ${total}`;
-
-    document.getElementById('profileRegisteredAt').textContent =
-      utils.formatDate(p.created_at ?? p.registeredAt ?? '');
-
-    const refCode = p.ref_code ?? '';
-    document.getElementById('profileReferralLink').value =
-      refCode ? `https://t.me/neurokartochkaBot?start=ref_${refCode}` : (p.referralLink ?? '');
-
-    this.open(dom.profileModalOverlay);
-  },
-
-  openConstructor() {
-    if (window.__promptBuilder && typeof window.__promptBuilder.resetOnOpen === 'function') {
-      window.__promptBuilder.resetOnOpen();
-    }
-    this.open(dom.constructorModalOverlay);
-  },
-
-  openTutorial() {
-    const hasSeenInSession = sessionStorage.getItem(CONFIG.TUTORIAL_KEY);
-    if (!hasSeenInSession) {
-      this.open(dom.tutorialModalOverlay);
-    }
-  },
-
-  closeTutorial() {
-    sessionStorage.setItem(CONFIG.TUTORIAL_KEY, 'true');
-    this.close(dom.tutorialModalOverlay);
-  }
-};
-
-// Вспомогательные функции
-function toggleFavorite(promptId) {
-  // legacy wrapper (keep calls working)
-  toggleFavoriteEdge(promptId);
-}
-
-
-async function toggleCurrentFavorite() {
-  const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
-  const prompt = list[modal.currentIndex];
-  if (!prompt) return;
-
-  await toggleFavoriteEdge(prompt.id);
-}
-
-
-async function copyCurrentPrompt() {
-  const list = state.filteredPrompts.length ? state.filteredPrompts : state.prompts;
-  const prompt = list[modal.currentIndex];
-  if (!prompt) return;
-
-  const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
-
-  if (success) {
-    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-    try {
-      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
-      const el = document.getElementById('promptModalCopies');
-      if (el) el.textContent = String(prompt.copies || 0);
-    } catch (e) {
-      console.warn("prompt_copy failed:", e);
-    }
-    updatePrompts();
-  } else {
-    utils.showToast('Ошибка копирования', 'error');
-  }
-}
-
-// НОВАЯ ФУНКЦИЯ: Копирование промпта напрямую из карточки
-async function copyPromptDirectly(promptId) {
-  const prompt = state.prompts.find(p => p.id === promptId);
-  if (!prompt) return;
-
-  const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
-
-  if (success) {
-    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-    try {
-      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
-    } catch (e) {
-      console.warn("prompt_copy failed:", e);
-    }
-    onPromptMetricsChanged(promptId);
-  } else {
-    utils.showToast('Ошибка копирования', 'error');
-  }
-}
-
-function setupCarouselSwipe() {
-  const carousel = document.getElementById('promptCarousel');
-  if (!carousel) return;
-
-  let startX = 0;
-  let isDown = false;
-
-  carousel.addEventListener('touchstart', (e) => {
-    isDown = true;
-    startX = e.touches[0].clientX;
-  }, { passive: true });
-
-  carousel.addEventListener('touchend', (e) => {
-    if (!isDown) return;
-
-    isDown = false;
-    const endX = e.changedTouches[0]?.clientX || startX;
-    const distance = endX - startX;
-
-    if (Math.abs(distance) > CONFIG.MIN_SWIPE_DISTANCE) {
-      distance > 0 ? modal.prev() : modal.next();
-    }
-  }, { passive: true });
-}
-
-// Конструктор промптов (без изменений)
-function initPromptBuilder() {
-  const builderData = {
-    pose: {
-      key: 'pose',
-      type: 'radio',
-      title: 'Действие и поза',
-      desc: 'Выберите основную позу персонажа',
-      icon: '🧍',
-      options: [
-        { value: 'Стоит', icon: '🧍', text: 'Стоит' },
-        { value: 'Сидит', icon: '🪑', text: 'Сидит' },
-        { value: 'Идёт', icon: '🚶', text: 'Идёт' },
-        { value: 'Держит предмет', icon: '✋', text: 'Держит предмет' },
-        { value: 'Расслабленная поза', icon: '😌', text: 'Расслабленная поза' },
-        { value: 'Динамичная поза', icon: '⚡', text: 'Динамичная поза' }
-      ]
-    },
-    clothes: {
-      key: 'clothes',
-      type: 'multi',
-      title: 'Одежда',
-      desc: 'Можно выбрать несколько вариантов',
-      icon: '👕',
-      options: [
-        { value: 'Классический костюм', icon: '🤵', text: 'Классический костюм' },
-        { value: 'Смокинг', icon: '🎩', text: 'Смокинг' },
-        { value: 'Блейзер с брюками', icon: '👔', text: 'Блейзер с брюками' },
-        { value: 'Вечернее платье', icon: '👗', text: 'Вечернее платье' },
-        { value: 'Худи', icon: '🧥', text: 'Худи' },
-        { value: 'Кожаная куртка', icon: '🧥', text: 'Кожаная куртка' },
-        { value: 'Джинсовка', icon: '🧢', text: 'Джинсовка' },
-        { value: 'Футболка', icon: '👕', text: 'Футболка' },
-        { value: 'Спортивная одежда', icon: '🏃', text: 'Спортивная одежда' },
-        { value: 'Винтаж', icon: '🕰️', text: 'Винтаж' },
-        { value: 'Бохо стиль', icon: '🌸', text: 'Бохо стиль' },
-        { value: 'Минимализм', icon: '⚪', text: 'Минимализм' }
-      ]
-    },
-    location: {
-      key: 'location',
-      type: 'multi',
-      title: 'Локация',
-      desc: 'Можно выбрать несколько',
-      icon: '📍',
-      options: [
-        { value: 'Неоновая улица', icon: '🌃', text: 'Неоновая улица' },
-        { value: 'Крыша с видом на город', icon: '🏙️', text: 'Крыша с видом на город' },
-        { value: 'Стена с граффити', icon: '🎨', text: 'Стена с граффити' },
-        { value: 'Современный офис', icon: '🏢', text: 'Современный офис' },
-        { value: 'Люксовый лаунж', icon: '🛋️', text: 'Люксовый лаунж' },
-        { value: 'Дождливая улица', icon: '🌧️', text: 'Дождливая улица' },
-        { value: 'Мощёная улица', icon: '🧱', text: 'Мощёная улица' },
-        { value: 'Индустриальный лофт', icon: '🏗️', text: 'Индустриальный лофт' }
-      ]
-    },
-    time: {
-      key: 'time',
-      type: 'radio',
-      title: 'Время суток',
-      desc: 'Выберите время',
-      icon: '🕒',
-      options: [
-        { value: 'Золотой час', icon: '🌅', text: 'Золотой час' },
-        { value: 'Рассвет', icon: '🌄', text: 'Рассвет' },
-        { value: 'Закат', icon: '🌇', text: 'Закат' },
-        { value: 'Синий час (сумерки)', icon: '🌆', text: 'Синий час (сумерки)' },
-        { value: 'Полдень', icon: '☀️', text: 'Полдень' },
-        { value: 'Ночь', icon: '🌙', text: 'Ночь' }
-      ]
-    },
-    lighting: {
-      key: 'lighting',
-      type: 'multi',
-      title: 'Освещение',
-      desc: 'Можно выбрать несколько',
-      icon: '💡',
-      options: [
-        { value: 'Естественный свет', icon: '☀️', text: 'Естественный свет' },
-        { value: 'Свет золотого часа', icon: '🌅', text: 'Свет золотого часа' },
-        { value: 'Неоновый свет', icon: '💡', text: 'Неоновый свет' },
-        { value: 'Студийное освещение', icon: '🎛️', text: 'Студийное освещение' },
-        { value: 'Уличное освещение', icon: '🏙️', text: 'Уличное освещение' },
-        { value: 'Свет свечей', icon: '🕯️', text: 'Свет свечей' },
-        { value: 'Гирлянды', icon: '✨', text: 'Гирлянды' }
-      ]
-    }
-  };
-
-  const builderState = {
-    pose: '',
-    clothes: new Set(),
-    location: new Set(),
-    time: '',
-    lighting: new Set()
-  };
-
-  const elements = {
-    sections: document.getElementById('pbSections'),
-    prompt: document.getElementById('pbPrompt'),
-    progressFill: document.getElementById('pbProgressFill'),
-    progressPercent: document.getElementById('pbProgressPercent'),
-    charCount: document.getElementById('pbCharCount'),
-    notification: document.getElementById('pbNotification'),
-    copyBtn: document.getElementById('pbCopyBtn'),
-    resetBtn: document.getElementById('pbResetBtn'),
-    expandBtn: document.getElementById('pbExpandBtn'),
-    collapseBtn: document.getElementById('pbCollapseAllBtn')
-  };
-
-  // Генерация секций
-  elements.sections.innerHTML = Object.values(builderData).map(section => `
-    <div class="pb-section" data-section>
-      <button class="pb-section__head" type="button" data-toggle="${section.key}">
-        <div class="pb-section__head-left">
-          <span class="pb-section__icon">${section.icon}</span>
-          <div class="pb-section__title-wrap">
-            <div class="pb-section__title">${section.title}</div>
-            <div class="pb-section__desc">${section.desc}</div>
-          </div>
-        </div>
-        <div class="pb-section__head-right">
-          ${section.type === 'radio' 
-            ? `<span class="pb-section__current" data-key="${section.key}">${builderState[section.key] || 'Не выбрано'}</span>`
-            : `<span class="pb-section__counter" data-key="${section.key}" style="display:${builderState[section.key].size > 0 ? 'flex' : 'none'}">${builderState[section.key].size}</span>`
-          }
-          <span class="pb-section__arrow">▼</span>
-        </div>
-      </button>
-      <div class="pb-section__body" data-body="${section.key}">
-        ${section.type === 'multi' ? '<div class="pb-section__note">Можно выбрать несколько</div>' : ''}
-        <div class="pb-pills ${section.type === 'radio' ? 'pb-radio' : 'pb-multi'}" data-key="${section.key}">
-          ${section.options.map(opt => `
-            <button class="pb-pill ${(section.type === 'radio' && builderState[section.key] === opt.value) || 
-                                    (section.type === 'multi' && builderState[section.key].has(opt.value)) ? 'is-active' : ''}" 
-                    type="button" data-value="${opt.value}">
-              <span class="pb-pill__icon">${opt.icon}</span>
-              <span class="pb-pill__text">${opt.text}</span>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  function updateProgress() {
-    const sections = Object.keys(builderData);
-    const filled = sections.filter(key => {
-      const value = builderState[key];
-      return value instanceof Set ? value.size > 0 : value && value.trim() !== '';
-    }).length;
-    
-    const percentage = Math.round((filled / sections.length) * 100);
-    elements.progressFill.style.width = `${percentage}%`;
-    elements.progressPercent.textContent = `${percentage}%`;
-    
-    // Обновление счетчиков
-    document.querySelectorAll('.pb-section__current[data-key="pose"]').forEach(el => {
-      el.textContent = builderState.pose || 'Не выбрано';
-    });
-    
-    document.querySelectorAll('.pb-section__current[data-key="time"]').forEach(el => {
-      el.textContent = builderState.time || 'Не выбрано';
-    });
-    
-    ['clothes', 'location', 'lighting'].forEach(key => {
-      const counterEls = document.querySelectorAll(`.pb-section__counter[data-key="${key}"]`);
-      const count = builderState[key].size;
-      counterEls.forEach(el => {
-        el.style.display = count > 0 ? 'flex' : 'none';
-        el.textContent = String(count);
-      });
-    });
-  }
-
-  function buildPrompt() {
-    const base = "Сгенерируй фотореалистичное фото по описанию.";
-    const parts = [];
-    
-    if (builderState.pose) parts.push(`Поза/действие: ${builderState.pose}`);
-    if (builderState.clothes.size) parts.push(`Одежда: ${Array.from(builderState.clothes).join(', ')}`);
-    if (builderState.location.size) parts.push(`Локация: ${Array.from(builderState.location).join(', ')}`);
-    if (builderState.time) parts.push(`Время суток: ${builderState.time}`);
-    if (builderState.lighting.size) parts.push(`Освещение: ${Array.from(builderState.lighting).join(', ')}`);
-    
-    if (parts.length === 0) {
-      elements.charCount.textContent = '0';
-      elements.prompt.value = '';
-      return '';
-    }
-
-    const result = `${base}\n\n${parts.map(p => `• ${p}`).join('\n')}\n\nКачество: high detail, sharp, natural skin texture.`;
-    
-    elements.charCount.textContent = result.length.toLocaleString();
-    elements.prompt.value = result.trim();
-    
-    return result;
-  }
-
-  function showNotification(text, isError = false) {
-    elements.notification.textContent = text;
-    elements.notification.style.background = isError ? '#ef4444' : '#10B981';
-    elements.notification.classList.add('show');
-    
-    setTimeout(() => {
-      elements.notification.classList.remove('show');
-    }, 2000);
-  }
-
-  function resetBuilder() {
-    builderState.pose = '';
-    builderState.time = '';
-    builderState.clothes.clear();
-    builderState.location.clear();
-    builderState.lighting.clear();
-    
-    document.querySelectorAll('.pb-pill').forEach(pill => {
-      pill.classList.remove('is-active');
-    });
-    
-    buildPrompt();
-    updateProgress();
-    showNotification('Настройки конструктора сброшены');
-  }
-
-  function resetBuilderSilent(collapseAll = true) {
-    builderState.pose = '';
-    builderState.time = '';
-    builderState.clothes.clear();
-    builderState.location.clear();
-    builderState.lighting.clear();
-
-    // Обновляем UI после сброса
-    document.querySelectorAll('.pb-pill.is-active').forEach(pill => {
-      pill.classList.remove('is-active');
-    });
-
-    buildPrompt();
-    updateProgress();
-    elements.notification.classList.remove('show');
-
-    if (collapseAll) {
-      document.querySelectorAll('#pbSections [data-section]')
-        .forEach((section) => section.classList.add('is-collapsed'));
-    }
-  }
-
-  elements.sections.addEventListener('click', (e) => {
-    const target = e.target;
-    
-    const toggleBtn = target.closest('[data-toggle]');
-    if (toggleBtn) {
-      const section = toggleBtn.closest('[data-section]');
-      section.classList.toggle('is-collapsed');
-      return;
-    }
-    
-    const pill = target.closest('.pb-pill');
-    if (pill) {
-      const group = pill.closest('.pb-pills');
-      const key = group.dataset.key;
-      const value = pill.dataset.value;
-      
-      if (group.classList.contains('pb-radio')) {
-        document.querySelectorAll(`.pb-pills[data-key="${key}"] .pb-pill`).forEach(p => {
-          p.classList.remove('is-active');
-        });
-        pill.classList.add('is-active');
-        builderState[key] = value;
-      } else {
-        if (pill.classList.contains('is-active')) {
-          pill.classList.remove('is-active');
-          builderState[key].delete(value);
-        } else {
-          pill.classList.add('is-active');
-          builderState[key].add(value);
-        }
-      }
-      
-      buildPrompt();
-      updateProgress();
-    }
-  });
-
-  elements.copyBtn.addEventListener('click', async () => {
-    const success = await utils.copyToClipboard(elements.prompt.value);
-    
-    if (success) {
-      showNotification('Промпт скопирован. Вставьте его в чат с ботом');
-    } else {
-      showNotification('Не удалось скопировать', true);
-    }
-  });
-
-  elements.resetBtn.addEventListener('click', resetBuilder);
   
-  elements.expandBtn.addEventListener('click', () => {
-    elements.prompt.style.minHeight = elements.prompt.style.minHeight === '320px' ? '140px' : '320px';
-  });
+  .logo { grid-column: 1; grid-row: 1; font-size: 18px; gap: 8px; }
+  .logo-icon { width: 30px; height: 30px; font-size: 13px; border-radius: 8px; }
+  .logo span { font-size: 16px; }
   
-  elements.collapseBtn.addEventListener('click', () => {
-    document.querySelectorAll('[data-section]').forEach(section => {
-      section.classList.add('is-collapsed');
-    });
-  });
-
-  resetBuilderSilent(true);
-
-  window.__promptBuilder = {
-    resetOnOpen: () => resetBuilderSilent(true)
-  };
-}
-
-// Инициализация приложения
-function initApp() {
-  setTimeout(async () => {
-    initTelegramWebApp();
-    initPrompts();
-
-    // 1) СНАЧАЛА грузим промпты (иначе список пустой и запросов нет)
-    await loadPrompts();
-
-    // 2) Профиль — опционально (только в Telegram WebApp)
-    try {
-      runtimeProfile = await fetchProfileFromEdge();
-    } catch (e) {
-      runtimeProfile = null;
-    }
-
-    // Домашние цифры из профиля (если нет — будет демо, как и раньше)
-    const p = getProfileOrDemo();
-    dom.invitedCount.textContent = p.referrals_count ?? p.referrals ?? 0;
-    dom.earnedBonuses.textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
-    dom.bonusBalance.textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
-
-    const refCode = (p.ref_code ?? '').toString().trim();
-    dom.referralLink.value = refCode
-      ? `https://t.me/neurokartochkaBot?start=ref_${refCode}`
-      : (p.referralLink ?? "");
-
-    initPromptBuilder();
-  }, CONFIG.INIT_DELAY);
-}
-
-
-// Настройка обработчиков событий
-function setupEventListeners() {
-  // Поиск с debounce
-  dom.searchInput.addEventListener('input', utils.debounce(() => {
-    state.searchQuery = dom.searchInput.value.trim();
-    updatePrompts();
-  }, CONFIG.DEBOUNCE_DELAY));
-
-  // Фильтры категорий
-  dom.filterTabs.addEventListener('click', (e) => {
-    const tab = e.target.closest('.filter-tab');
-    if (!tab) return;
-
-    const category = tab.dataset.category;
-    state.activeCategories = new Set([category]);
-
-    renderCategories();
-    updatePrompts();
-  });
-
-  // Сортировка
-  dom.sortSelect.addEventListener('change', (e) => {
-    state.sortBy = e.target.value;
-    updatePrompts();
-  });
-
-  // Кнопка избранного
-  dom.favoritesBtn.addEventListener('click', () => {
-    state.showOnlyFavorites = !state.showOnlyFavorites;
-    updatePrompts();
-    utils.showToast(
-      state.showOnlyFavorites
-        ? 'Показаны только избранные промпты'
-        : 'Показаны все промпты'
-    );
-  });
-
-  // Карточки промптов с обработкой кнопок копирования и избранного
-  dom.cardsGrid.addEventListener('click', async (e) => {
-    // Обработка кнопки копирования
-    const copyBtn = e.target.closest('.copy-btn');
-    if (copyBtn) {
-      const id = parseInt(copyBtn.dataset.id);
-      copyPromptDirectly(id);
-      return;
-    }
-
-    // Обработка кнопки избранного
-    const favBtn = e.target.closest('.favorite-btn');
-    if (favBtn) {
-      const id = parseInt(favBtn.dataset.id);
-      await toggleFavoriteEdge(id);
-      return;
-    }
-
-    // Обработка клика по карточке
-    const card = e.target.closest('.prompt-card');
-    if (card) {
-      const id = parseInt(card.dataset.id);
-      modal.openPrompt(id);
-    }
-  });
-
-  // Копирование реферальной ссылки
-  dom.copyReferralBtn.addEventListener('click', async () => {
-    const success = await utils.copyToClipboard(dom.referralLink.value || '');
-
-    if (success) {
-      utils.showToast('Ссылка скопирована');
-      dom.copyReferralBtn.classList.add('is-copied');
-      setTimeout(() => dom.copyReferralBtn.classList.remove('is-copied'), 650);
-    } else {
-      utils.showToast('Ошибка копирования', 'error');
-    }
-  });
-
-  // Профиль
-  dom.profileBtn.addEventListener('click', () => {
-    dom.profileModalOverlay.lastFocusedElement = dom.profileBtn;
-    modal.openProfile();
-  });
-
-  document.getElementById('profileModalClose').addEventListener('click', () => modal.close(dom.profileModalOverlay));
-  dom.profileModalOverlay.addEventListener('click', (e) => {
-    if (e.target === dom.profileModalOverlay) modal.close(dom.profileModalOverlay);
-  });
-
-  document.getElementById('profileCopyReferralBtn').addEventListener('click', async () => {
-    const link = document.getElementById('profileReferralLink').value;
-    const success = await utils.copyToClipboard(link);
-
-    if (success) {
-      utils.showToast('Ссылка скопирована');
-    } else {
-      utils.showToast('Ошибка копирования', 'error');
-    }
-  });
-
-  // Модальное окно промпта
-  document.getElementById('promptModalClose').addEventListener('click', () => modal.close(dom.promptModalOverlay));
-  dom.promptModalOverlay.addEventListener('click', (e) => {
-    if (e.target === dom.promptModalOverlay) modal.close(dom.promptModalOverlay);
-  });
-
-  document.getElementById('promptPrevBtn').addEventListener('click', () => modal.prev());
-  document.getElementById('promptNextBtn').addEventListener('click', () => modal.next());
-  document.getElementById('promptModalCopyBtn').addEventListener('click', copyCurrentPrompt);
-  document.getElementById('promptModalFavBtn').addEventListener('click', toggleCurrentFavorite);
-
-  // Конструктор - обе кнопки (десктопная и мобильная)
-  dom.generateBtn.addEventListener('click', () => {
-    dom.constructorModalOverlay.lastFocusedElement = dom.generateBtn;
-    modal.openConstructor();
-  });
-
-  dom.mobileGenerateBtn.addEventListener('click', () => {
-    dom.constructorModalOverlay.lastFocusedElement = dom.mobileGenerateBtn;
-    modal.openConstructor();
-  });
-
-  dom.tryFreeBtn.addEventListener('click', () => {
-    dom.constructorModalOverlay.lastFocusedElement = dom.tryFreeBtn;
-    modal.openConstructor();
-  });
-
-  document.getElementById('constructorModalClose').addEventListener('click', () => modal.close(dom.constructorModalOverlay));
-  dom.constructorModalOverlay.addEventListener('click', (e) => {
-    if (e.target === dom.constructorModalOverlay) modal.close(dom.constructorModalOverlay);
-  });
-
-  // Туториал
-  if (dom.tutorialGotItBtn) {
-    dom.tutorialGotItBtn.addEventListener('click', () => modal.closeTutorial());
+  .desktop-generate-btn { display: none !important; }
+  
+  .mobile-search-row {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+  
+  .search-container { flex: 1; max-width: none; margin: 0; }
+  .search-input {
+    padding: 10px 14px 10px 40px;
+    border-radius: 12px;
+    font-size: 14px;
+    height: 44px;
+  }
+  .search-icon { left: 14px; }
+  
+  .mobile-generate-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 12px;
+    height: 44px;
+    background: var(--accent-gradient);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 90px;
+  }
+  .mobile-generate-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35); }
+  
+  .user-menu { grid-column: 3; grid-row: 1; display: flex; gap: 8px; justify-content: flex-end; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 8px; }
+  
+  /* Hero */
+  .hero-banner {
+    margin: 12px auto 0;
+    padding: 20px 16px;
+    border-radius: 16px;
+  }
+  .hero-title { font-size: 20px; }
+  .hero-subtitle { font-size: 14px; margin-bottom: 16px; }
+  
+  /* Main Content - минимальные отступы */
+  .container { padding: 16px 12px; }
+  .filter-tabs { 
+    margin-bottom: 12px; 
+    gap: 6px; 
+    padding-bottom: 4px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  
+  .filter-tab { 
+    padding: 8px 12px; 
+    border-radius: 12px; 
+    font-size: 12px;
+    border-width: 1px;
+  }
+  
+ .stats-bar {
+    padding: 12px 14px;
+    border-radius: 14px;
+    gap: 12px; /* Уменьшаем отступ между элементами */
+    flex-direction: row; /* Всегда в строку */
+    align-items: center;
+    margin-bottom: 16px;
+    overflow: hidden; /* Скрываем переполнение */
+  }
+  
+  .stats-info { 
+    font-size: 13px;
+    flex-shrink: 0; /* Запрещаем сжатие */
+  }
+  
+  .sort-select { 
+    width: auto; 
+    height: 36px; 
+    border-radius: 10px;
+    font-size: 13px;
+    flex-shrink: 0; /* Запрещаем сжатие */
+    min-width: 140px; /* Минимальная ширина на мобильных */
+    padding: 6px 12px;
+  }
+  
+  /* Карточки с минимальными расстояниями */
+  .cards-grid {
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  
+  /* Обновление стилей для .prompt-content и .prompt-meta на мобильных */
+  .prompt-content { 
+    padding: 0; 
+  }
+  
+  .prompt-meta { 
+    padding: 8px 12px; 
+  }
+  
+  .prompt-stats {
+    gap: 6px;
+    font-size: 10px;
+  }
+  
+  .prompt-stats .stat-item svg {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .prompt-actions { gap: 3px; }
+  .action-btn { 
+    width: 28px; 
+    height: 28px; 
+    border-radius: 6px;
+  }
+  .action-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+  
+  /* Бейдж */
+  .prompt-badge {
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 10px;
+    border-radius: 16px;
+  }
+  
+  /* Скрываем тени при наведении на мобильных */
+  .prompt-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .prompt-card:hover::after {
+    display: none;
+  }
+  
+  /* Referral */
+  .referral-section {
+    padding: 20px 16px;
+    border-radius: 16px;
+    margin-top: 24px;
+  }
+  .referral-header {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .referral-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+  .referral-title { font-size: 20px; }
+  .referral-subtitle { font-size: 13px; margin-top: 2px; }
+  .referral-stats { 
+    gap: 10px; 
+    margin-bottom: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .referral-stat { 
+    padding: 14px; 
+    border-radius: 10px; 
+  }
+  .stat-value { font-size: 22px; margin-bottom: 4px; }
+  .stat-label { font-size: 12px; }
+  .link-wrapper { 
+    flex-direction: column; 
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .primary-btn { 
+    min-width: 0; 
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+  .referral-link-section { 
+    padding: 16px; 
+    border-radius: 12px; 
+  }
+  
+  /* Модальное окно профиля на мобильных */
+  #profileModalOverlay .modal-header {
+    padding: 20px 24px;
+  }
+  
+  #profileModalOverlay .modal-title {
+    font-size: 20px;
+  }
+  
+  #profileModalOverlay .modal-body {
+    padding: 20px;
+    gap: 20px;
+  }
+  
+  #profileModalOverlay .kv {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  #profileModalOverlay .kv-card {
+    padding: 16px;
+    min-height: 90px;
+  }
+  
+  #profileModalOverlay .kv-card .k {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  
+  #profileModalOverlay .kv-card .v {
+    font-size: 20px;
+  }
+  
+  #profileModalOverlay .kv-card.wide {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+  
+  #profileModalOverlay .kv-card.wide .v {
+    font-size: 28px;
+    justify-content: center;
+  }
+  
+  #profileModalOverlay .link-wrapper {
+    flex-direction: column;
+  }
+  
+  #profileModalOverlay .primary-btn {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  #profileModalOverlay .referral-section {
+    padding: 20px;
+  }
+  
+  /* Modals (общие) */
+  .modal-overlay { padding: 8px; }
+  .modal { 
+    width: min(560px, 96vw); 
+    border-radius: 16px; 
+  }
+  .modal-body { padding: 12px; }
+  
+  .modal-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "left" "actions" "right";
+    gap: 10px;
+  }
+  
+  .detail-side-under {
+    padding: 12px;
+    border-radius: 14px;
+    margin-top: 0;
+    order: 2;
+  }
+  
+  .kv { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 6px; 
+  }
+  .kv-card { 
+    padding: 8px 10px; 
+    border-radius: 10px; 
+    height: 56px; 
+  }
+  .kv-card .k { font-size: 10px; }
+  .kv-card .v { font-size: 14px; }
+  
+  .detail-actions {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .detail-actions .primary-btn,
+  .detail-actions .secondary-btn {
+    height: 40px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+  
+  .prompt-textarea {
+    height: 220px;
+    max-height: 40vh;
+    border-radius: 14px;
+    padding: 12px;
+    font-size: 12px;
+    order: 3;
+  }
+  
+  .carousel-btn { width: 36px; height: 36px; border-radius: 12px; }
+  .carousel-counter { bottom: 10px; font-size: 11px; padding: 3px 8px; }
+  
+  /* Prompt Builder Mobile */
+  .pb-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .pb-output__tools {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    justify-content: flex-start;
   }
 
-  if (dom.tutorialModalOverlay) {
-    dom.tutorialModalOverlay.addEventListener('click', (e) => {
-      if (e.target === dom.tutorialModalOverlay) modal.closeTutorial();
-    });
+  .pb-tool {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    min-width: 40px;
+    height: 32px;
+    border-radius: 6px;
+    font-size: 12px;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
-  // Глобальные события клавиатуры
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (dom.tutorialModalOverlay.classList.contains('show')) {
-        modal.closeTutorial();
-      } else if (dom.constructorModalOverlay.classList.contains('show')) {
-        modal.close(dom.constructorModalOverlay);
-      } else if (dom.profileModalOverlay.classList.contains('show')) {
-        modal.close(dom.profileModalOverlay);
-      } else if (dom.promptModalOverlay.classList.contains('show')) {
-        modal.close(dom.promptModalOverlay);
-      }
+  /* Mobile Constructor Tool Buttons */
+  @media (max-width: 480px) {
+    .pb-tool {
+      padding: 6px;
+      min-width: 32px;
     }
 
-    if (dom.promptModalOverlay.classList.contains('show')) {
-      if (e.key === 'ArrowLeft') modal.prev();
-      if (e.key === 'ArrowRight') modal.next();
+    .pb-tool-text {
+      display: none;
     }
-  });
 
-  // Swipe для карусели
-  setupCarouselSwipe();
-}
-
-// Функция для перемещения баннера на мобильных устройствах
-function moveBannerForMobile() {
-  const banner = document.querySelector('.hero-banner');
-  const container = document.querySelector('.container');
-  const header = document.querySelector('header');
-
-  if (!banner || !container || !header) return;
-
-  if (window.innerWidth <= 768) {
-    if (!banner.classList.contains('moved-to-bottom')) {
-      container.after(banner);
-      banner.classList.add('moved-to-bottom');
-      banner.style.marginTop = '0';
-      banner.style.marginBottom = '24px';
+    .pb-tool-icon {
+      display: block !important;
+      width: 14px;
+      height: 14px;
     }
-  } else {
-    if (banner.classList.contains('moved-to-bottom')) {
-      header.after(banner);
-      banner.classList.remove('moved-to-bottom');
-      banner.style.marginTop = '32px';
-      banner.style.marginBottom = '';
-    }
+  }
+
+  /* Mobile Constructor Header */
+  .pb-output__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .pb-output__title-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .pb-output__stats {
+    align-self: flex-start;
+    font-size: 11px;
+    padding: 3px 8px;
   }
 }
 
-// Запуск приложения
-document.addEventListener('DOMContentLoaded', () => {
-  initApp();
-  setupEventListeners();
+@media (max-width: 480px) {
+  .header { padding: 10px 12px; }
+  .header-content { gap: 6px 10px; }
+  .logo-icon { width: 28px; height: 28px; font-size: 12px; }
+  .logo span { font-size: 15px; }
+  .mobile-search-row { gap: 6px; }
+  .search-input { 
+    height: 40px; 
+    padding: 9px 12px 9px 36px; 
+    font-size: 13px; 
+    border-radius: 10px;
+  }
+  .search-icon { left: 12px; }
+  .mobile-generate-btn { 
+    height: 40px; 
+    padding: 0 10px; 
+    font-size: 13px; 
+    min-width: 80px;
+    border-radius: 10px;
+  }
+  .icon-btn { 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 8px;
+  }
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .hero-banner { 
+    margin: 8px 8px 0; 
+    padding: 16px 14px; 
+    border-radius: 14px; 
+  }
+  .hero-title { font-size: 18px; }
+  .hero-subtitle { font-size: 13px; margin-bottom: 12px; }
+  
+  .container { padding: 14px 10px; }
+  .filter-tabs { 
+    margin-bottom: 10px; 
+    gap: 4px; 
+  }
+  .filter-tab { 
+    padding: 6px 10px; 
+    font-size: 11px;
+    border-radius: 10px;
+  }
+  
+  .stats-bar { 
+    padding: 10px 12px; 
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .stats-info { 
+    font-size: 12px;
+  }
+  
+  .sort-select { 
+    height: 34px; 
+    border-radius: 8px;
+    font-size: 12px;
+    min-width: 120px;
+    padding: 5px 10px;
+  }
+  
+  /* Модальное окно профиля на очень маленьких экранах */
+  #profileModalOverlay .kv {
+    grid-template-columns: 1fr;
+  }
+  
+  #profileModalOverlay .modal-header {
+    padding: 18px 20px;
+  }
+  
+  #profileModalOverlay .modal-body {
+    padding: 16px;
+    gap: 16px;
+  }
+  
+  #profileModalOverlay .kv-card {
+    padding: 14px;
+    min-height: 85px;
+  }
+  
+  #profileModalOverlay .kv-card .v {
+    font-size: 18px;
+  }
+  
+  #profileModalOverlay .kv-card.wide .v {
+    font-size: 24px;
+  }
+  
+  /* Еще меньше расстояния между карточками */
+  .cards-grid {
+    gap: 6px;
+  }
+  
+  /* Обновление стилей для очень маленьких экранов */
+  .prompt-content { 
+    padding: 0; 
+  }
+  
+  .prompt-meta { 
+    padding: 6px 10px; 
+  }
+  
+  .prompt-stats {
+    gap: 4px;
+    font-size: 9px;
+  }
+  
+  .prompt-stats .stat-item svg {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .prompt-actions { gap: 2px; }
+  .action-btn { 
+    width: 26px; 
+    height: 26px; 
+    border-radius: 5px;
+  }
+  .action-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .referral-section { 
+    padding: 16px 14px; 
+    border-radius: 14px;
+    margin-top: 20px;
+  }
+  .referral-title { font-size: 18px; }
+  .referral-subtitle { font-size: 12px; }
+  
+  .modal-header { padding: 10px 12px; }
+  .modal-title { font-size: 14px; }
+  .modal-subtitle { font-size: 11px; }
+  .prompt-textarea { 
+    height: 180px; 
+    font-size: 11.5px; 
+    padding: 10px; 
+    border-radius: 12px;
+  }
+  
+  .toast {
+    left: 8px; right: 8px; bottom: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    max-width: none;
+  }
+}
 
-  // Показать туториал при загрузке (с небольшой задержкой)
-  setTimeout(() => {
-    modal.openTutorial();
-  }, 1000);
+@media (max-width: 360px) {
+  .logo span { display: none; }
+  .mobile-generate-btn .btn-text { display: none; }
+  .mobile-generate-btn {
+    min-width: 40px;
+    padding: 0;
+    width: 40px;
+    justify-content: center;
+  }
+  .hero-title { font-size: 16px; }
+  .referral-title { font-size: 16px; }
+  
+  /* Минимальные расстояния между карточками */
+  .cards-grid {
+    gap: 4px;
+  }
+  
+  /* Дополнительное уменьшение для очень маленьких экранов */
+  .prompt-content { padding: 0; }
+  
+  .prompt-meta { 
+    padding: 4px 6px; 
+  }
+  
+  .prompt-stats {
+    gap: 3px;
+    font-size: 8px;
+  }
+  
+  .prompt-stats .stat-item svg {
+    width: 7px;
+    height: 7px;
+  }
+  
+  .prompt-actions { gap: 2px; }
+  .action-btn { 
+    width: 24px; 
+    height: 24px; 
+    border-radius: 4px;
+  }
+  .action-btn svg {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .pb-output__tools {
+    gap: 3px;
+  }
+  
+  .pb-tool {
+    min-width: 28px;
+    height: 28px;
+    padding: 4px;
+    border-radius: 5px;
+  }
+  
+  .pb-tool-icon {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .pb-output__head {
+    padding: 10px 12px;
+  }
+ .stats-bar { 
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  
+  .stats-info { 
+    font-size: 11px;
+  }
+  
+  .sort-select { 
+    height: 32px; 
+    font-size: 11px;
+    min-width: 110px;
+    padding: 4px 8px;
+  }
+}
 
-  window.addEventListener('resize', () => {
-    if (dom.promptModalOverlay.classList.contains('show')) {
-      syncPromptModalStatsPlacement();
+/* === UTILITY CLASSES === */
+.loading-container,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.loader {
+  width: 40px; height: 40px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+
+body.modal-open { overflow: hidden; position: fixed; width: 100%; height: 100%; }
+
+/* Hide mobile elements on desktop */
+@media (min-width: 769px) {
+  .mobile-search-row,
+  .mobile-generate-btn { display: none; }
+  .desktop-generate-btn { display: inline-flex !important; }
+}
+
+/* ========== СТИЛИ ДЛЯ СВАЙПА ========== */
+/* Мобильные чипы статистики поверх изображения */
+@media (max-width: 768px) {
+  #promptCarousel {
+    position: relative;
+    overflow: hidden;
+  }
+
+  #promptCarousel::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.38), rgba(0,0,0,0));
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Переносим KV в компактные чипы и кладём поверх изображения */
+  #promptModalStats {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+    width: auto;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  #promptModalStats .kv-card {
+    height: auto;
+    padding: 5px 8px;
+    border-radius: 16px;
+    background: rgba(17,24,39,.55);
+    border: 1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0,0,0,.18);
+    pointer-events: none;
+  }
+
+  /* Подписи прячем — оставляем только цифры */
+  #promptModalStats .kv-card .k {
+    display: none;
+  }
+
+  #promptModalStats .kv-card .v {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -0.2px;
+  }
+
+  /* Иконки для статистики */
+  #promptModalStats .kv-card .v {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  #promptModalStats .kv-card:nth-child(1) .v::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Crect x='9' y='9' width='13' height='13' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    flex-shrink: 0;
+  }
+
+  #promptModalStats .kv-card:nth-child(2) .v::before {
+    content: '';
+    display: block;
+    width: 12px;
+    height: 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    flex-shrink: 0;
+  }
+
+  /* Убираем старую статистику */
+  #promptModalStatsDock {
+    display: none !important;
+  }
+}
+
+/* Touch device improvements */
+@media (hover: none) {
+  .modal-body {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+  
+  .prompt-textarea {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Поднимаем кнопки на мобильных */
+@media (max-width: 768px) {
+  .detail-side-under {
+    margin-top: -16px;
+    position: relative;
+    z-index: 2;
+  }
+}
+
+/* ===============================
+   Mobile Prompt Modal Fix
+   Уменьшаем изображение и фиксируем кнопки
+   =============================== */
+
+@media (max-width: 768px) {
+  .modal-body {
+    padding: 10px;
+    max-height: 85vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Уменьшаем изображение */
+  .carousel {
+    aspect-ratio: 3/4;
+    max-height: 45vh; /* Ограничиваем высоту */
+    height: auto;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .carousel img {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Уменьшаем навигацию */
+  .carousel-nav {
+    padding: 0 6px;
+  }
+
+  .carousel-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    backdrop-filter: blur(8px);
+  }
+
+  .carousel-counter {
+    bottom: 10px;
+    font-size: 11px;
+    padding: 3px 8px;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Уменьшаем статистику */
+  #promptModalStats {
+    top: 6px;
+    left: 6px;
+    gap: 4px;
+  }
+
+  #promptModalStats .kv-card {
+    padding: 4px 6px;
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    min-width: 50px;
+  }
+
+  #promptModalStats .kv-card .v {
+    font-size: 11px;
+    font-weight: 600;
+    gap: 2px;
+  }
+
+  #promptModalStats .kv-card:nth-child(1) .v::before,
+  #promptModalStats .kv-card:nth-child(2) .v::before {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* Фиксируем кнопки в зоне видимости */
+  .detail-side-under {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-card);
+    border: 1px solid rgba(17,24,39,.12);
+    border-radius: 14px;
+    padding: 14px;
+    margin-top: -8px; /* Поднимаем ближе к изображению */
+    z-index: 10;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(10px);
+  }
+
+  .detail-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .detail-actions .primary-btn,
+  .detail-actions .secondary-btn {
+    height: 40px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detail-actions .primary-btn {
+    background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
+  }
+
+  .detail-actions .secondary-btn {
+    background: var(--bg-primary);
+    border: 1.5px solid var(--border);
+    color: var(--text-primary);
+  }
+
+  /* Уменьшаем текстовое поле */
+  .prompt-textarea {
+    height: 180px;
+    max-height: 35vh;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-top: 10px;
+    order: 3;
+    border: 1.5px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .prompt-textarea:focus {
+    background: var(--bg-primary);
+    border-color: var(--accent);
+  }
+
+  /* Настройки прокрутки модального окна */
+  .modal {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    flex-shrink: 0;
+    padding: 14px;
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 16px;
+  }
+
+  /* Улучшаем видимость при прокрутке */
+  .detail-side-under {
+    position: relative;
+    bottom: auto;
+    margin-top: 10px;
+  }
+
+  /* Добавляем градиент для индикации прокрутки */
+  .modal-body::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background: linear-gradient(to top, var(--bg-card), transparent);
+    pointer-events: none;
+    z-index: 5;
+  }
+}
+
+/* ===============================
+   Extra Small Devices
+   =============================== */
+
+@media (max-width: 480px) {
+  .carousel {
+    max-height: 40vh;
+    margin-bottom: 8px;
+  }
+
+  .detail-side-under {
+    padding: 12px;
+    margin-top: 6px;
+  }
+
+  .detail-actions .primary-btn,
+  .detail-actions .secondary-btn {
+    height: 38px;
+    font-size: 12px;
+  }
+
+  .prompt-textarea {
+    height: 160px;
+    font-size: 11.5px;
+    padding: 10px;
+  }
+
+  .modal-header {
+    padding: 12px 14px;
+  }
+
+  .modal-title {
+    font-size: 14px;
+  }
+
+  .modal-subtitle {
+    font-size: 11px;
+  }
+
+  /* Еще меньше изображение на очень маленьких экранах */
+  .carousel {
+    aspect-ratio: 4/3;
+    max-height: 35vh;
+  }
+}
+
+/* ===============================
+   Landscape Orientation
+   =============================== */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .carousel {
+    aspect-ratio: 16/9;
+    max-height: 35vh;
+  }
+  
+  .prompt-textarea {
+    height: 140px;
+    max-height: 30vh;
+  }
+  
+  .modal-body {
+    max-height: 90vh;
+  }
+}
+
+/* ===============================
+   iOS Safari Fixes
+   =============================== */
+
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 768px) {
+    .modal {
+      max-height: -webkit-fill-available;
     }
-    moveBannerForMobile();
-  });
-
-  // Перенос баннера при загрузке
-  moveBannerForMobile();
-});
-
-
-// --- debug exports ---
-try {
-  window.__app = {
-    initApp,
-    fetchPromptsFromEdge: (typeof fetchPromptsFromEdge === 'function') ? fetchPromptsFromEdge : null,
-    loadPrompts: (typeof loadPrompts === 'function') ? loadPrompts : null,
-    callEdge: (typeof callEdge === 'function') ? callEdge : null,
-    getTelegramInitData: (typeof getTelegramInitData === 'function') ? getTelegramInitData : null,
-  };
-  console.log("window.__app ready", window.__app);
-} catch (e) {
-  console.warn("debug export failed", e);
+    
+    .modal-body {
+      max-height: calc(100vh - 120px);
+    }
+    
+    .carousel {
+      max-height: 40vh;
+    }
+  }
 }
