@@ -228,7 +228,7 @@ async function toggleFavoriteEdge(promptId) {
       if (favCounter) favCounter.textContent = String(prompt.favorites || 0);
     }
 
-    updatePrompts();
+    onPromptMetricsChanged(promptId);
     utils.showToast(isFav ? 'Добавлено в избранное' : 'Удалено из избранного');
   } catch (e) {
     console.warn("prompt-favorite failed:", e);
@@ -396,13 +396,13 @@ function renderPrompts() {
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
-              ${prompt.copies}
+              <span class="stat-value" data-stat="copies">${prompt.copies}</span>
             </div>
             <div class="stat-item" title="Добавлено в избранное">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
-              ${prompt.favorites}
+              <span class="stat-value" data-stat="favorites">${prompt.favorites}</span>
             </div>
           </div>
           <div class="prompt-actions">
@@ -502,6 +502,117 @@ function updateStats() {
     `;
   }
 }
+
+
+// ---- UI updates without full re-render (prevents flicker) ----
+function applyFiltersAndSort(prompts) {
+  let filtered = [...prompts];
+
+  // только избранное
+  if (state.showOnlyFavorites) {
+    filtered = filtered.filter(p => !!p.is_favorite);
+  }
+
+  // категории
+  if (state.activeCategories && state.activeCategories.size) {
+    filtered = filtered.filter(p => state.activeCategories.has(p.category));
+  }
+
+  // поиск
+  const query = (state.searchQuery || '').toLowerCase().trim();
+  if (query) {
+    filtered = filtered.filter(p =>
+      String(p.title || '').toLowerCase().includes(query) ||
+      String(p.description || '').toLowerCase().includes(query) ||
+      (Array.isArray(p.tags) && p.tags.some(tag => String(tag).toLowerCase().includes(query)))
+    );
+  }
+
+  // сортировка (как в updatePrompts)
+  filtered.sort((a, b) => {
+    switch (state.sortBy) {
+      case 'default': return ((b.copies || 0) + (b.favorites || 0)) - ((a.copies || 0) + (a.favorites || 0));
+      case 'new': return (b.id || 0) - (a.id || 0);
+      case 'copies': return (b.copies || 0) - (a.copies || 0);
+      case 'favorites': return (b.favorites || 0) - (a.favorites || 0);
+      default: return 0;
+    }
+  });
+
+  return filtered;
+}
+
+function updatePromptUI(promptId) {
+  const id = String(promptId);
+  const prompt = state.prompts.find(p => String(p.id) === id);
+  if (!prompt) return;
+
+  // карточка в списке
+  const card = dom.promptGrid?.querySelector?.(`.prompt-card[data-id="${id}"]`);
+  if (card) {
+    const copiesEl = card.querySelector('[data-stat="copies"]');
+    if (copiesEl) copiesEl.textContent = String(prompt.copies || 0);
+
+    const favEl = card.querySelector('[data-stat="favorites"]');
+    if (favEl) favEl.textContent = String(prompt.favorites || 0);
+
+    const favBtn = card.querySelector('.favorite-btn');
+    if (favBtn) favBtn.classList.toggle('active', !!prompt.is_favorite);
+  }
+
+  // модалка (если открыта именно эта карточка)
+  const openId = dom.modal?.dataset?.id;
+  if (openId && String(openId) === id) {
+    if (dom.modalCopiesCount) dom.modalCopiesCount.textContent = String(prompt.copies || 0);
+    if (dom.modalFavCount) dom.modalFavCount.textContent = String(prompt.favorites || 0);
+    if (dom.modalFavBtn) dom.modalFavBtn.classList.toggle('active', !!prompt.is_favorite);
+  }
+}
+
+function moveCardToSortedPosition(promptId) {
+  const id = String(promptId);
+  state.filteredPrompts = applyFiltersAndSort(state.prompts);
+
+  const container = dom.promptGrid;
+  if (!container) return;
+
+  const card = container.querySelector(`.prompt-card[data-id="${id}"]`);
+  if (!card) return;
+
+  const ids = state.filteredPrompts.map(p => String(p.id));
+  const idx = ids.indexOf(id);
+
+  // если карточка больше не должна отображаться — убираем
+  if (idx === -1) {
+    card.remove();
+    return;
+  }
+
+  // вставляем перед следующей карточкой в "идеальном" порядке
+  const nextId = ids[idx + 1];
+  if (nextId) {
+    const nextEl = container.querySelector(`.prompt-card[data-id="${nextId}"]`);
+    if (nextEl && nextEl !== card) {
+      container.insertBefore(card, nextEl);
+      return;
+    }
+  }
+  // иначе — в конец
+  if (container.lastElementChild !== card) container.appendChild(card);
+}
+
+function onPromptMetricsChanged(promptId) {
+  updatePromptUI(promptId);
+
+  // если сортировка зависит от копий/избранного или включен показ только избранного —
+  // аккуратно переместим карточку, без пересоздания всего списка
+  if (state.showOnlyFavorites || state.sortBy === 'copies' || state.sortBy === 'favorites' || state.sortBy === 'default') {
+    moveCardToSortedPosition(promptId);
+  }
+
+  updateStats();
+}
+// ------------------------------------------------------------
 
 function isMobileView() {
   return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
@@ -669,56 +780,41 @@ async function copyCurrentPrompt() {
 
   const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
 
-  if (!success) {
-    utils.showToast('Ошибка копирования', 'error');
-    return;
-  }
-
-  utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-
-  try {
-    const res = await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-
-    // ✅ увеличиваем ТОЛЬКО если БД реально приняла запись
-    if (res?.counted === true) {
-      prompt.copies = Number(prompt.copies || 0) + 1;
-
+  if (success) {
+    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
+    try {
+      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
+      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
       const el = document.getElementById('promptModalCopies');
-      if (el) el.textContent = String(prompt.copies);
+      if (el) el.textContent = String(prompt.copies || 0);
+    } catch (e) {
+      console.warn("prompt_copy failed:", e);
     }
-  } catch (e) {
-    console.warn("prompt_copy failed:", e);
+    updatePrompts();
+  } else {
+    utils.showToast('Ошибка копирования', 'error');
   }
-
-  updatePrompts();
 }
 
 // НОВАЯ ФУНКЦИЯ: Копирование промпта напрямую из карточки
 async function copyPromptDirectly(promptId) {
-  const prompt = state.prompts.find(p => Number(p.id) === Number(promptId));
+  const prompt = state.prompts.find(p => p.id === promptId);
   if (!prompt) return;
 
   const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
 
-  if (!success) {
-    utils.showToast('Ошибка копирования', 'error');
-    return;
-  }
-
-  utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-
-  try {
-    const res = await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-
-    // ✅ увеличиваем ТОЛЬКО если вставка была первой
-    if (res?.counted === true) {
-      prompt.copies = Number(prompt.copies || 0) + 1;
+  if (success) {
+    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
+    try {
+      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
+      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
+    } catch (e) {
+      console.warn("prompt_copy failed:", e);
     }
-  } catch (e) {
-    console.warn("prompt_copy failed:", e);
+    onPromptMetricsChanged(promptId);
+  } else {
+    utils.showToast('Ошибка копирования', 'error');
   }
-
-  updatePrompts();
 }
 
 function setupCarouselSwipe() {
