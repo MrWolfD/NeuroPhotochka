@@ -585,29 +585,27 @@ async function toggleFavorite(promptId) {
   const prompt = state.prompts.find(p => p.id === promptId);
   if (!prompt) return;
 
-  // оптимистично переключаем UI
   const next = !prompt.is_favorite;
+
+  // оптимистично
   prompt.is_favorite = next;
-  if (state.filteredPrompts) {
-    const p2 = state.filteredPrompts.find(p => p.id === promptId);
-    if (p2) p2.is_favorite = next;
-  }
+  const p2 = state.filteredPrompts?.find(p => p.id === promptId);
+  if (p2) p2.is_favorite = next;
 
   try {
-    await callEdge(PROMPT_FAVORITE_URL, { prompt_id: promptId, is_favorite: next });
-    utils.showToast(next ? 'Добавлено в избранное' : 'Удалено из избранного');
+    const action = next ? "add" : "remove";
+    await callEdge(PROMPT_FAVORITE_URL, { prompt_id: promptId, action });
+    utils.showToast(next ? "Добавлено в избранное" : "Удалено из избранного");
   } catch (e) {
     // откат
     prompt.is_favorite = !next;
-    if (state.filteredPrompts) {
-      const p2 = state.filteredPrompts.find(p => p.id === promptId);
-      if (p2) p2.is_favorite = !next;
-    }
+    if (p2) p2.is_favorite = !next;
     console.warn("prompt_favorite failed:", e);
-    utils.showToast('Не удалось обновить избранное', 'error');
+    utils.showToast("Не удалось обновить избранное", "error");
   }
 
   updatePrompts();
+  updateStats(); // на всякий, чтобы счетчик точно обновился
 }
 
 
