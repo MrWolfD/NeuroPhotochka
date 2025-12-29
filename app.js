@@ -273,6 +273,8 @@ const demoData = {
 // Кэш DOM элементов
 const dom = {
   cardsGrid: document.getElementById('cardsGrid'),
+  // alias: часть кода обращается к promptGrid
+  promptGrid: document.getElementById('cardsGrid'),
   filterTabs: document.getElementById('filterTabs'),
   visibleCount: document.getElementById('visibleCount'),
   totalCount: document.getElementById('totalCount'),
