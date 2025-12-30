@@ -780,19 +780,30 @@ async function copyCurrentPrompt() {
 
   const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
 
-  if (success) {
-    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-    try {
-      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
-      const el = document.getElementById('promptModalCopies');
-      if (el) el.textContent = String(prompt.copies || 0);
-    } catch (e) {
-      console.warn("prompt_copy failed:", e);
-    }
-    updatePrompts();
-  } else {
+  if (!success) {
     utils.showToast('Ошибка копирования', 'error');
+    return;
+  }
+
+  utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
+
+  // 🔒 Если пользователь уже копировал этот промпт раньше — не увеличиваем счётчик повторно
+  if (Number(prompt.copies || 0) > 0) {
+    return;
+  }
+
+  try {
+    await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
+    prompt.copies = 1;
+
+    // синхроним модалку
+    const el = document.getElementById('promptModalCopies');
+    if (el) el.textContent = '1';
+
+    // синхроним карточку/статы без перерендера всего списка
+    onPromptMetricsChanged(prompt.id);
+  } catch (e) {
+    console.warn("prompt_copy failed:", e);
   }
 }
 
@@ -803,18 +814,26 @@ async function copyPromptDirectly(promptId) {
 
   const success = await utils.copyToClipboard(prompt.promptText || prompt.title);
 
-  if (success) {
-    utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
-    try {
-      await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-      prompt.copies = Math.max(Number(prompt.copies || 0) + 1, 1);
-    } catch (e) {
-      console.warn("prompt_copy failed:", e);
-    }
-    onPromptMetricsChanged(promptId);
-  } else {
+  if (!success) {
     utils.showToast('Ошибка копирования', 'error');
+    return;
   }
+
+  utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
+
+  // 🔒 Если пользователь уже копировал этот промпт раньше — не увеличиваем счётчик повторно
+  if (Number(prompt.copies || 0) > 0) {
+    return;
+  }
+
+  try {
+    await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
+    prompt.copies = 1;
+  } catch (e) {
+    console.warn("prompt_copy failed:", e);
+  }
+
+  onPromptMetricsChanged(promptId);
 }
 
 function setupCarouselSwipe() {
