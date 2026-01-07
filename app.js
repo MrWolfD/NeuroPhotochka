@@ -107,8 +107,36 @@ async function fetchProfileFromEdge() {
   return profile;
 }
 
-function getProfileOrDemo() {
-  return runtimeProfile || demoData.profile;
+function getProfileOrNull() {
+  return runtimeProfile || null; // никаких demoData
+}
+
+function isTelegramAuthorized() {
+  return !!getTelegramInitData();
+}
+
+// Всегда возвращаем объект, чтобы UI/модалки спокойно рендерились,
+// но без демо-данных (все значения нулевые/пустые до авторизации).
+function getProfileForUI() {
+  return getProfileOrNull() || {
+    // генерации
+    total_generations: 0,
+    done_count: 0,
+    not_finished_count: 0,
+    cancel_count: 0,
+
+    // бонусы/рефералы
+    referrals_count: 0,
+    referrals: 0,
+    bonus_total: 0,
+    earnedBonuses: 0,
+    bonus_balance: 0,
+    bonusBalance: 0,
+
+    // реф-код
+    ref_code: '',
+    referralLink: ''
+  };
 }
 
 // --- Prompts from Supabase Edge ---
@@ -728,7 +756,7 @@ const modal = {
   },
 
   openProfile() {
-    const p = getProfileOrDemo();
+    const p = getProfileForUI();
 
     const total = Number(p.total_generations ?? p.generations?.total ?? 0);
     const done = Number(p.done_count ?? p.generations?.success ?? 0);
@@ -1212,15 +1240,18 @@ function initApp() {
     }
 
     // Домашние цифры из профиля (если нет — будет демо, как и раньше)
-    const p = getProfileOrDemo();
+    const p = getProfileForUI();
     dom.invitedCount.textContent = p.referrals_count ?? p.referrals ?? 0;
     dom.earnedBonuses.textContent = p.bonus_total ?? p.earnedBonuses ?? 0;
     dom.bonusBalance.textContent = p.bonus_balance ?? p.bonusBalance ?? 0;
 
     const refCode = (p.ref_code ?? '').toString().trim();
-    dom.referralLink.value = refCode
-      ? `https://t.me/neurokartochkaBot?start=ref_${refCode}`
-      : (p.referralLink ?? "");
+    // Реферальную ссылку показываем ТОЛЬКО при авторизации через Telegram WebApp
+    if (isTelegramAuthorized() && refCode) {
+      dom.referralLink.value = `https://t.me/neurokartochkaBot?start=ref_${refCode}`;
+    } else {
+      dom.referralLink.value = '';
+    }
 
     initPromptBuilder();
   }, CONFIG.INIT_DELAY);
@@ -1292,7 +1323,14 @@ function setupEventListeners() {
 
   // Копирование реферальной ссылки
   dom.copyReferralBtn.addEventListener('click', async () => {
-    const success = await utils.copyToClipboard(dom.referralLink.value || '');
+    const link = (dom.referralLink.value || '').trim();
+
+    if (!link) {
+      utils.showToast('Реферальная ссылка доступна после входа через Telegram', 'error');
+      return;
+    }
+
+    const success = await utils.copyToClipboard(link);
 
     if (success) {
       utils.showToast('Ссылка скопирована');
