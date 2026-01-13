@@ -10,15 +10,31 @@ const CONFIG = {
   TUTORIAL_KEY: 'neurophoto_tutorial_seen_session'
 };
 
-// ✅ Public anon key — можно хранить на фронте
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbWlyem1xbmNid2p6dHNjd3lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0MTAwMDksImV4cCI6MjA3OTk4NjAwOX0.D4UwlJ9lEfQZHc31max3xvoLzFIWCmuB9KNKnFkOY68";
+// --- API (Fastify) ---
+// Можно переопределить базовый URL API:
+// 1) window.NEUROPHOTO_API_BASE (в index.html до подключения app.js)
+// 2) localStorage['neurophoto_api_base']
+// По умолчанию — тот же origin (если фронт и API на одном домене)
+const DEFAULT_API_BASE = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : "";
 
+function getApiBase() {
+  try {
+    const w = typeof window !== 'undefined' ? window : null;
+    const fromWindow = w && typeof w.NEUROPHOTO_API_BASE === "string" ? w.NEUROPHOTO_API_BASE : "";
+    const fromLS = w?.localStorage?.getItem("neurophoto_api_base") || "";
+    const base = (fromWindow || fromLS || DEFAULT_API_BASE || "").trim().replace(/\/+$/, "");
+    return base || "";
+  } catch {
+    return (DEFAULT_API_BASE || "").replace(/\/+$/, "");
+  }
+}
 
-const BASE_FN = "https://pfmirzmqncbwjztscwyo.functions.supabase.co/functions/v1";
-const TG_PROFILE_URL = `${BASE_FN}/tg_profile`;
-const PROMPT_LIST_URL = `${BASE_FN}/prompt-list`;
-const PROMPT_FAVORITE_URL = `${BASE_FN}/prompt-favorite`;
-const PROMPT_COPY_URL = `${BASE_FN}/prompt_copy`;
+const API_BASE = getApiBase();
+const TG_PROFILE_URL = `${API_BASE}/tg/profile`;
+const PROMPT_LIST_URL = `${API_BASE}/prompt/list`;
+const PROMPT_FAVORITE_URL = `${API_BASE}/prompt/favorite`;
+const PROMPT_COPY_URL = `${API_BASE}/prompt/copy`;
+
 // --- Telegram WebApp + Supabase Edge profile ---
 
 let runtimeProfile = null;
@@ -79,32 +95,13 @@ async function fetchProfileFromEdge() {
     return null;
   }
 
-  const res = await fetch(TG_PROFILE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // ✅ Без этого Supabase Edge Function часто отдаёт 401
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify({ initData })
-  });
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(`tg_profile HTTP ${res.status}: ${text}`);
-  }
-
-  let json;
   try {
-    json = JSON.parse(text);
+    const payload = await callEdge(TG_PROFILE_URL, {});
+    return normalizeProfilePayload(payload);
   } catch (e) {
-    throw new Error("tg_profile returned non-JSON");
+    console.warn("tg/profile failed:", e);
+    return null;
   }
-
-  const profile = normalizeProfilePayload(json);
-
-  return profile;
 }
 
 function getProfileOrNull() {
@@ -171,19 +168,24 @@ async function callEdge(url, payload) {
   const initData = getTelegramInitData();
   if (!initData) return { ok: false, message: "No initData" };
 
+  if (!url || typeof url !== "string") {
+    throw new Error("API url is not set (check NEUROPHOTO_API_BASE)");
+  }
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "x-telegram-init-data": initData,
     },
-    body: JSON.stringify({ initData, ...payload }),
+    // для совместимости: сервер принимает initData и в body
+    body: JSON.stringify({ initData, ...(payload || {}) }),
   });
 
   const text = await res.text();
-  if (!res.ok) throw new Error(`Edge HTTP ${res.status}: ${text}`);
+  if (!res.ok) throw new Error(`API HTTP ${res.status}: ${text}`);
 
-  try { return JSON.parse(text); } catch { throw new Error("Edge returned non-JSON"); }
+  try { return JSON.parse(text); } catch { throw new Error("API returned non-JSON"); }
 }
 
 async function fetchPromptsFromEdge() {
@@ -871,18 +873,30 @@ async function copyPromptDirectly(promptId) {
   utils.showToast('Промпт скопирован. Вставьте его в чат с ботом');
 
   // 🔒 Если пользователь уже копировал этот промпт раньше — не увеличиваем счётчик повторно
-  if (Number(prompt.copies || 0) > 0) {
-    return;
-  }
-
-  try {
-    await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
-    prompt.copies = 1;
-  } catch (e) {
-    console.warn("prompt_copy failed:", e);
-  }
-
+if (Number(prompt.copies || 0) > 0) {
   onPromptMetricsChanged(promptId);
+  return;
+}
+
+try {
+  const res = await callEdge(PROMPT_COPY_URL, { prompt_id: prompt.id });
+
+  // бэк сообщает, засчиталась ли копия впервые (counted)
+  // но для UI важно, что у пользователя теперь точно есть копия => 1
+  if (res && typeof res === "object") {
+    if (typeof res.copies_by_user === "number") {
+      prompt.copies = res.copies_by_user;
+    } else {
+      prompt.copies = 1;
+    }
+  } else {
+    prompt.copies = 1;
+  }
+} catch (e) {
+  console.warn("prompt/copy failed:", e);
+}
+
+onPromptMetricsChanged(promptId);
 }
 
 function setupCarouselSwipe() {
