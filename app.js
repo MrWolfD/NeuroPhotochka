@@ -1,4 +1,4 @@
-console.log("APP VERSION: 2025-12-29T15:11:32Z");
+console.log("APP VERSION: 2026-01-13T00:00:00Z");
 'use strict';
 
 // Конфигурация
@@ -15,47 +15,17 @@ const CONFIG = {
 // 1) window.NEUROPHOTO_API_BASE (в index.html до подключения app.js)
 // 2) localStorage['neurophoto_api_base']
 // По умолчанию — тот же origin (если фронт и API на одном домене)
-const DEFAULT_API_BASE = "";
+const DEFAULT_API_BASE = "https://api.iiava.koshelev.agency";
 
 function getApiBase() {
   try {
     const w = typeof window !== 'undefined' ? window : null;
-
-    // 1) Из query параметра ?api=https://your-api-domain (удобно для отладки на GitHub Pages)
-    const fromQuery = (() => {
-      try {
-        const u = new URL(w.location.href);
-        return (u.searchParams.get("api") || "").trim();
-      } catch {
-        return "";
-      }
-    })();
-
-    // 2) Из window.NEUROPHOTO_API_BASE (можно задать в index.html до подключения app.js)
-    const fromWindow = w && typeof w.NEUROPHOTO_API_BASE === "string" ? w.NEUROPHOTO_API_BASE.trim() : "";
-
-    // 3) Из localStorage (персистентно)
-    const fromLS = w?.localStorage?.getItem("neurophoto_api_base")?.trim?.() || "";
-
-    const base = (fromWindow || fromQuery || fromLS || DEFAULT_API_BASE || "").trim().replace(/\/+$/, "");
-
-    // Если передали через query — запомним, чтобы работало без параметра дальше
-    if (base && fromQuery) {
-      try { w.localStorage.setItem("neurophoto_api_base", base); } catch {}
-    }
-
-    // Если base не задан: используем same-origin ТОЛЬКО если это не GitHub Pages,
-    // иначе получим 405 на POST (как у тебя сейчас).
-    if (!base) {
-      const host = String(w?.location?.hostname || "");
-      const isGithubPages = host.endsWith("github.io") || host.includes("githubusercontent.com");
-      if (!isGithubPages) return (w.location.origin || "").replace(/\/+$/, "");
-      return "";
-    }
-
-    return base;
+    const fromWindow = w && typeof w.NEUROPHOTO_API_BASE === "string" ? w.NEUROPHOTO_API_BASE : "";
+    const fromLS = w?.localStorage?.getItem("neurophoto_api_base") || "";
+    const base = (fromWindow || fromLS || DEFAULT_API_BASE || "").trim().replace(/\/+$/, "");
+    return base || "";
   } catch {
-    return "";
+    return (DEFAULT_API_BASE || "").replace(/\/+$/, "");
   }
 }
 
