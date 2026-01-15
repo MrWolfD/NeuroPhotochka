@@ -10,14 +10,15 @@ const CONFIG = {
   TUTORIAL_KEY: 'iiava_tutorial_seen_session'
 };
 
-// Fastify API base
 const API_BASE = "https://api.iiava.koshelev.agency";
 
-const TG_PROFILE_URL = `${API_BASE}/tg/profile`;
-const PROMPT_LIST_URL = `${API_BASE}/prompt/list`;
-const PROMPT_FAVORITE_URL = `${API_BASE}/prompt/favorite`;
-const PROMPT_COPY_URL = `${API_BASE}/prompt/copy`;
-// --- Telegram WebApp + Supabase Edge profile ---
+// ✅ ЖЕНСКИЙ БОТ
+const BOT_PREFIX = "/women";
+
+const TG_PROFILE_URL = `${API_BASE}${BOT_PREFIX}/tg/profile`;
+const PROMPT_LIST_URL = `${API_BASE}${BOT_PREFIX}/prompt/list`;
+const PROMPT_FAVORITE_URL = `${API_BASE}${BOT_PREFIX}/prompt/favorite`;
+const PROMPT_COPY_URL = `${API_BASE}${BOT_PREFIX}/prompt/copy`;
 
 let runtimeProfile = null;
 
